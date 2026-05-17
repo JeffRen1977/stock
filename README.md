@@ -68,6 +68,26 @@ PYTHONPATH=src python3 -m stock_whatsapp_agent.main --dry-run
 PYTHONPATH=src python3 -m stock_whatsapp_agent.main
 ```
 
+## Smoke Test Checklist
+
+Run this checklist before starting a larger upgrade:
+
+```bash
+cd /home/renjeff/Documents/projects/Stock
+python3 -m compileall src
+API_REQUEST_DELAY_SECONDS=0 PYTHONPATH=src python3 -m stock_whatsapp_agent.main --dry-run
+git status --short
+```
+
+Confirm:
+
+- The dry run prints a stock update.
+- At least fallback prices are available for the watchlist.
+- `memory/daily_stock/YYYY-MM-DD/stock_update.md` is written.
+- `memory/daily_stock/YYYY-MM-DD/stock_update.json` is written.
+- `data/stock_agent.sqlite3` exists.
+- `.env` does not appear in `git status --short`.
+
 ## Data Provider
 
 Use Yahoo Finance for the no-key version:
