@@ -52,6 +52,8 @@ Acceptance criteria:
 
 ## Phase 1: Provider Health And Fallback Control
 
+Status: Done
+
 Goal: make provider failures visible and controllable.
 
 Files likely touched:
@@ -104,6 +106,14 @@ Steps:
    ```
 
 5. Show provider warnings in the dry-run log, but keep WhatsApp concise.
+
+Completion notes:
+
+- `ProviderHealthRecord` records provider name, operation, success, error, latency, timestamp, and stale flag.
+- Provider calls for quotes, news, top gainers, and history are wrapped with health tracking.
+- `provider_health` records are saved to SQLite with each run.
+- `PRIMARY_MARKET_PROVIDER`, `FALLBACK_MARKET_PROVIDERS`, and `PROVIDER_TIMEOUT_SECONDS` are documented in `.env.example`.
+- The existing Yahoo/Stooq path remains the default no-key fallback behavior.
 
 Acceptance criteria:
 

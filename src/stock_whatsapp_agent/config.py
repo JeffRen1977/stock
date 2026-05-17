@@ -57,6 +57,9 @@ def _optional_bool(name: str, default: bool) -> bool:
 class Settings:
     stock_api_provider: str
     stock_api_key: str | None
+    primary_market_provider: str
+    fallback_market_providers: tuple[str, ...]
+    provider_timeout_seconds: float
     whatsapp_to: tuple[str, ...]
     watchlist: tuple[str, ...]
     top_gainers_limit: int
@@ -86,9 +89,19 @@ class Settings:
         if not recipients:
             raise ValueError("WHATSAPP_TO must include at least one WhatsApp recipient")
 
+        primary_market_provider = os.getenv(
+            "PRIMARY_MARKET_PROVIDER",
+            os.getenv("STOCK_API_PROVIDER", "yahoo"),
+        ).strip().lower()
+
         return cls(
-            stock_api_provider=os.getenv("STOCK_API_PROVIDER", "yahoo").strip().lower(),
+            stock_api_provider=primary_market_provider,
             stock_api_key=os.getenv("STOCK_API_KEY", "").strip() or None,
+            primary_market_provider=primary_market_provider,
+            fallback_market_providers=tuple(
+                provider.lower() for provider in _split_csv(os.getenv("FALLBACK_MARKET_PROVIDERS", "stooq,yahoo"))
+            ),
+            provider_timeout_seconds=_optional_float("PROVIDER_TIMEOUT_SECONDS", 8.0),
             whatsapp_to=recipients,
             watchlist=watchlist,
             top_gainers_limit=_optional_int("TOP_GAINERS_LIMIT", 5),

@@ -59,12 +59,14 @@ class StockDataProvider(Protocol):
 
 
 class YahooFinanceProvider:
+    provider_name = "yahoo"
     search_url = "https://query2.finance.yahoo.com/v1/finance/search"
     screener_url = "https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved"
     chart_url = "https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
     stooq_quote_url = "https://stooq.com/q/l/"
 
-    def __init__(self) -> None:
+    def __init__(self, timeout_seconds: float = 8.0) -> None:
+        self.timeout_seconds = timeout_seconds
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -78,7 +80,7 @@ class YahooFinanceProvider:
 
     def _get(self, url: str, params: dict[str, str | int]) -> dict:
         try:
-            response = self.session.get(url, params=params, timeout=8)
+            response = self.session.get(url, params=params, timeout=self.timeout_seconds)
             response.raise_for_status()
         except requests.RequestException as exc:
             raise RuntimeError(str(exc)) from None
@@ -132,7 +134,7 @@ class YahooFinanceProvider:
             response = self.session.get(
                 self.stooq_quote_url,
                 params={"s": stooq_symbol, "f": "sd2t2ohlcv", "h": "", "e": "csv"},
-                timeout=8,
+                timeout=self.timeout_seconds,
             )
             response.raise_for_status()
         except requests.RequestException as exc:
@@ -244,10 +246,12 @@ class YahooFinanceProvider:
 
 
 class AlphaVantageProvider:
+    provider_name = "alphavantage"
     base_url = "https://www.alphavantage.co/query"
 
-    def __init__(self, api_key: str) -> None:
+    def __init__(self, api_key: str, timeout_seconds: float = 8.0) -> None:
         self.api_key = api_key
+        self.timeout_seconds = timeout_seconds
         self.session = requests.Session()
 
     def _get(self, params: dict[str, str | int]) -> dict:
@@ -255,7 +259,7 @@ class AlphaVantageProvider:
             response = self.session.get(
                 self.base_url,
                 params={**params, "apikey": self.api_key},
-                timeout=20,
+                timeout=self.timeout_seconds,
             )
             response.raise_for_status()
         except requests.RequestException as exc:
@@ -326,10 +330,12 @@ class AlphaVantageProvider:
 
 
 class FinnhubProvider:
+    provider_name = "finnhub"
     base_url = "https://finnhub.io/api/v1"
 
-    def __init__(self, api_key: str) -> None:
+    def __init__(self, api_key: str, timeout_seconds: float = 8.0) -> None:
         self.api_key = api_key
+        self.timeout_seconds = timeout_seconds
         self.session = requests.Session()
 
     def _get(self, path: str, params: dict[str, str | int]) -> dict | list:
@@ -337,7 +343,7 @@ class FinnhubProvider:
             response = self.session.get(
                 f"{self.base_url}/{path}",
                 params={**params, "token": self.api_key},
-                timeout=20,
+            timeout=self.timeout_seconds,
             )
             response.raise_for_status()
         except requests.RequestException as exc:
@@ -400,17 +406,21 @@ class FinnhubProvider:
         return []
 
 
-def build_provider(provider_name: str, api_key: str | None) -> StockDataProvider:
+def build_provider(
+    provider_name: str,
+    api_key: str | None,
+    timeout_seconds: float = 8.0,
+) -> StockDataProvider:
     if provider_name == "yahoo":
-        return YahooFinanceProvider()
+        return YahooFinanceProvider(timeout_seconds=timeout_seconds)
     if provider_name == "alphavantage":
         if not api_key:
             raise ValueError("STOCK_API_KEY is required when STOCK_API_PROVIDER=alphavantage")
-        return AlphaVantageProvider(api_key)
+        return AlphaVantageProvider(api_key, timeout_seconds=timeout_seconds)
     if provider_name == "finnhub":
         if not api_key:
             raise ValueError("STOCK_API_KEY is required when STOCK_API_PROVIDER=finnhub")
-        return FinnhubProvider(api_key)
+        return FinnhubProvider(api_key, timeout_seconds=timeout_seconds)
     raise ValueError("Unsupported STOCK_API_PROVIDER. Use 'yahoo', 'alphavantage', or 'finnhub'.")
 
 

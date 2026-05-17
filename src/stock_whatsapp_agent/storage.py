@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from .health import ProviderHealthRecord
 from .indicators import TechnicalIndicators
 from .providers import HistoricalBar, NewsItem, StockQuote, TopGainer
 from .reasoning import StockAnalysis
@@ -20,6 +21,7 @@ def save_run_to_sqlite(
     history_by_symbol: dict[str, list[HistoricalBar]],
     indicators_by_symbol: dict[str, TechnicalIndicators],
     analyses: list[StockAnalysis],
+    provider_health: list[ProviderHealthRecord],
 ) -> None:
     database_path.parent.mkdir(parents=True, exist_ok=True)
     generated_at = datetime.now(ZoneInfo(timezone)).isoformat()
@@ -120,6 +122,26 @@ def save_run_to_sqlite(
                 ),
             )
 
+        for record in provider_health:
+            connection.execute(
+                """
+                insert into provider_health(
+                    run_id, provider_name, operation, success, error, latency_ms, created_at, stale
+                )
+                values (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    record.provider_name,
+                    record.operation,
+                    int(record.success),
+                    record.error,
+                    record.latency_ms,
+                    record.created_at,
+                    int(record.stale),
+                ),
+            )
+
 
 def _create_tables(connection: sqlite3.Connection) -> None:
     connection.executescript(
@@ -183,6 +205,17 @@ def _create_tables(connection: sqlite3.Connection) -> None:
             alert text,
             rationale text,
             action text
+        );
+
+        create table if not exists provider_health (
+            run_id integer,
+            provider_name text,
+            operation text,
+            success integer,
+            error text,
+            latency_ms integer,
+            created_at text,
+            stale integer
         );
         """
     )
