@@ -127,6 +127,16 @@ Provider responses are cached in SQLite using separate TTL values for quotes, ne
 
 News is also converted into structured events when possible. Events include type, sentiment, confidence, impact score, related symbols, and the source news hash. They are saved to SQLite and daily memory, and high-impact events can influence the agent's alert decision.
 
+SEC EDGAR ingestion is enabled by default for important filings such as `8-K`, `10-Q`, `10-K`, Form `4`, and `S-1`. Set a real contact in `.env`:
+
+```bash
+ENABLE_SEC_INGESTION=true
+SEC_USER_AGENT="OpenClawStockAgent/0.1 your-email@example.com"
+SEC_FILINGS_LIMIT=5
+```
+
+Recent filings are saved to SQLite and daily memory, and important filings are converted into structured events.
+
 ## Memory
 
 Each run saves the generated message and raw stock data:

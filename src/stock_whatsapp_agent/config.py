@@ -74,6 +74,9 @@ class Settings:
     dashboard_dir: Path
     chart_symbol: str
     generate_chart_widget: bool
+    enable_sec_ingestion: bool
+    sec_user_agent: str
+    sec_filings_limit: int
     timezone: str
     send_time: str
 
@@ -119,6 +122,12 @@ class Settings:
             dashboard_dir=Path(os.getenv("DASHBOARD_DIR", "dashboard").strip()),
             chart_symbol=os.getenv("CHART_SYMBOL", "NVDA").strip().upper(),
             generate_chart_widget=_optional_bool("GENERATE_CHART_WIDGET", True),
+            enable_sec_ingestion=_optional_bool("ENABLE_SEC_INGESTION", True),
+            sec_user_agent=os.getenv(
+                "SEC_USER_AGENT",
+                "OpenClawStockAgent/0.1 contact@example.com",
+            ).strip(),
+            sec_filings_limit=_optional_int("SEC_FILINGS_LIMIT", 5),
             timezone=os.getenv("TIMEZONE", "America/Los_Angeles").strip(),
             send_time=os.getenv("SEND_TIME", "13:30").strip(),
         )

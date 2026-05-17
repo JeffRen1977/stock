@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from .cache import news_item_hash
 from .providers import NewsItem
+from .sec import SecFiling
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,29 @@ def extract_events_from_news(news_by_symbol: dict[str, list[NewsItem]]) -> dict[
     return events_by_symbol
 
 
+def extract_events_from_filings(filings_by_symbol: dict[str, list[SecFiling]]) -> dict[str, list[StockEvent]]:
+    events_by_symbol = {}
+    for symbol, filings in filings_by_symbol.items():
+        events_by_symbol[symbol] = [_event_from_filing(filing) for filing in filings]
+    return events_by_symbol
+
+
+def merge_events(
+    *event_groups: dict[str, list[StockEvent]],
+) -> dict[str, list[StockEvent]]:
+    merged: dict[str, list[StockEvent]] = {}
+    for group in event_groups:
+        for symbol, events in group.items():
+            merged.setdefault(symbol, [])
+            seen = {event.dedupe_hash for event in merged[symbol]}
+            for event in events:
+                if event.dedupe_hash in seen:
+                    continue
+                merged[symbol].append(event)
+                seen.add(event.dedupe_hash)
+    return merged
+
+
 def extract_event(item: NewsItem) -> StockEvent | None:
     text = f"{item.headline} {item.summary}".lower()
     event_type = _event_type(text)
@@ -79,6 +103,46 @@ def extract_event(item: NewsItem) -> StockEvent | None:
         related_symbols=related_symbols,
         dedupe_hash=news_item_hash(item),
     )
+
+
+def _event_from_filing(filing: SecFiling) -> StockEvent:
+    event_type = _filing_event_type(filing.form_type)
+    sentiment = "neutral"
+    impact_score = _filing_impact_score(filing.form_type)
+    confidence = 85 if filing.form_type in {"8-K", "10-Q", "10-K", "4"} else 75
+    summary = f"{filing.symbol} filed {filing.form_type}: {filing.title}"
+
+    return StockEvent(
+        symbol=filing.symbol,
+        event_type=event_type,
+        headline=summary,
+        summary=summary,
+        source="SEC EDGAR",
+        published_at=filing.filing_date,
+        sentiment=sentiment,
+        confidence=confidence,
+        impact_score=impact_score,
+        related_symbols=(),
+        dedupe_hash=filing.accession_number,
+    )
+
+
+def _filing_event_type(form_type: str) -> str:
+    if form_type == "4":
+        return "insider_transaction"
+    if form_type in {"10-Q", "10-K", "8-K"}:
+        return "earnings_related_filing"
+    return "filing_event"
+
+
+def _filing_impact_score(form_type: str) -> int:
+    return {
+        "8-K": 80,
+        "10-Q": 75,
+        "10-K": 75,
+        "4": 65,
+        "S-1": 80,
+    }.get(form_type, 55)
 
 
 def _event_type(text: str) -> str | None:

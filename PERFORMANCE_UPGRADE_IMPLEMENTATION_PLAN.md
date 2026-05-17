@@ -331,6 +331,8 @@ Acceptance criteria:
 
 ## Phase 5: SEC EDGAR Ingestion
 
+Status: Done
+
 Goal: add official company filing intelligence.
 
 Files likely touched:
@@ -386,6 +388,16 @@ Steps:
    insider_transaction
    earnings_related_filing
    ```
+
+Completion notes:
+
+- Added `SecEdgarClient` and `SecFiling` in `sec.py`.
+- Added static CIK mapping for the current watchlist and common related stocks.
+- Fetches recent important SEC forms: `8-K`, `10-Q`, `10-K`, Form `4`, and `S-1`.
+- Stores filings in SQLite with `accession_number` as the dedupe key.
+- Adds SEC filings to daily memory JSON.
+- Converts important filings into structured events with SEC-specific event types.
+- Adds `Recent SEC Filings` to the WhatsApp message when filings are available.
 
 Acceptance criteria:
 

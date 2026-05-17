@@ -16,7 +16,7 @@ from .cache import (
 )
 from .config import Settings, redact_recipients
 from .dashboard import render_chart_widget
-from .events import extract_events_from_news
+from .events import extract_events_from_filings, extract_events_from_news, merge_events
 from .formatter import format_daily_message
 from .health import ProviderHealthRecord, make_provider_health_record
 from .indicators import calculate_indicators
@@ -31,6 +31,7 @@ from .providers import (
     build_provider,
 )
 from .reasoning import analyze_stock
+from .sec import SecEdgarClient, SecFiling
 from .storage import save_run_to_sqlite
 from .whatsapp import build_whatsapp_sender
 
@@ -65,7 +66,10 @@ def run(dry_run: bool = False) -> int:
         response_cache,
         settings.news_cache_ttl_seconds,
     )
-    events_by_symbol = extract_events_from_news(news_by_symbol)
+    news_events_by_symbol = extract_events_from_news(news_by_symbol)
+    filings_by_symbol = _fetch_sec_filings(settings)
+    filing_events_by_symbol = extract_events_from_filings(filings_by_symbol)
+    events_by_symbol = merge_events(news_events_by_symbol, filing_events_by_symbol)
 
     logger.info("Fetching top gainers")
     top_gainers = _fetch_top_gainers(
@@ -126,6 +130,7 @@ def run(dry_run: bool = False) -> int:
         indicators_by_symbol=indicators_by_symbol,
         analyses=analyses,
         events_by_symbol=events_by_symbol,
+        filings_by_symbol=filings_by_symbol,
         recommendations_by_symbol=recommendations_by_symbol,
         earnings_by_symbol=earnings_by_symbol,
         timezone=settings.timezone,
@@ -141,6 +146,7 @@ def run(dry_run: bool = False) -> int:
         indicators_by_symbol=indicators_by_symbol,
         analyses=analyses,
         events_by_symbol=events_by_symbol,
+        filings_by_symbol=filings_by_symbol,
         provider_health=provider_health,
         recommendations_by_symbol=recommendations_by_symbol,
         earnings_by_symbol=earnings_by_symbol,
@@ -165,6 +171,7 @@ def run(dry_run: bool = False) -> int:
             indicators_by_symbol=indicators_by_symbol,
             analyses=analyses,
             events_by_symbol=events_by_symbol,
+            filings_by_symbol=filings_by_symbol,
             recommendations_by_symbol=recommendations_by_symbol,
             earnings_by_symbol=earnings_by_symbol,
             message=message,
@@ -377,6 +384,26 @@ def _fetch_earnings(
         finally:
             _sleep_between_api_calls(request_delay_seconds)
     return earnings_by_symbol
+
+
+def _fetch_sec_filings(settings: Settings) -> dict[str, list[SecFiling]]:
+    if not settings.enable_sec_ingestion:
+        return {symbol: [] for symbol in settings.watchlist}
+
+    client = SecEdgarClient(
+        user_agent=settings.sec_user_agent,
+        timeout_seconds=settings.provider_timeout_seconds,
+    )
+    filings_by_symbol = {}
+    for symbol in settings.watchlist:
+        try:
+            filings_by_symbol[symbol] = client.get_recent_filings(symbol, settings.sec_filings_limit)
+        except Exception as exc:
+            logger.warning("Failed to fetch SEC filings for %s: %s", symbol, exc)
+            filings_by_symbol[symbol] = []
+        finally:
+            _sleep_between_api_calls(settings.api_request_delay_seconds)
+    return filings_by_symbol
 
 
 def _cached_provider_call(

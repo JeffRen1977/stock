@@ -12,6 +12,7 @@ from .health import ProviderHealthRecord
 from .indicators import TechnicalIndicators
 from .providers import EarningsEvent, HistoricalBar, NewsItem, RecommendationTrend, StockQuote, TopGainer
 from .reasoning import StockAnalysis
+from .sec import SecFiling
 
 
 def save_run_to_sqlite(
@@ -24,6 +25,7 @@ def save_run_to_sqlite(
     indicators_by_symbol: dict[str, TechnicalIndicators],
     analyses: list[StockAnalysis],
     events_by_symbol: dict[str, list[StockEvent]],
+    filings_by_symbol: dict[str, list[SecFiling]],
     provider_health: list[ProviderHealthRecord],
     recommendations_by_symbol: dict[str, list[RecommendationTrend]] | None = None,
     earnings_by_symbol: dict[str, list[EarningsEvent]] | None = None,
@@ -150,6 +152,26 @@ def save_run_to_sqlite(
                         event.impact_score,
                         event.related_symbols_json,
                         event.dedupe_hash,
+                    ),
+                )
+
+        for symbol, filings in filings_by_symbol.items():
+            for filing in filings:
+                connection.execute(
+                    """
+                    insert or ignore into filings(
+                        symbol, cik, form_type, filing_date, accession_number, filing_url, title
+                    )
+                    values (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        symbol,
+                        filing.cik,
+                        filing.form_type,
+                        filing.filing_date,
+                        filing.accession_number,
+                        filing.filing_url,
+                        filing.title,
                     ),
                 )
 
@@ -302,6 +324,16 @@ def _create_tables(connection: sqlite3.Connection) -> None:
             impact_score integer,
             related_symbols_json text,
             dedupe_hash text
+        );
+
+        create table if not exists filings (
+            symbol text,
+            cik text,
+            form_type text,
+            filing_date text,
+            accession_number text primary key,
+            filing_url text,
+            title text
         );
 
         create table if not exists recommendation_trends (
