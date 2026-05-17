@@ -7,6 +7,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .cache import create_cache_tables
+from .events import StockEvent
 from .health import ProviderHealthRecord
 from .indicators import TechnicalIndicators
 from .providers import EarningsEvent, HistoricalBar, NewsItem, RecommendationTrend, StockQuote, TopGainer
@@ -22,6 +23,7 @@ def save_run_to_sqlite(
     history_by_symbol: dict[str, list[HistoricalBar]],
     indicators_by_symbol: dict[str, TechnicalIndicators],
     analyses: list[StockAnalysis],
+    events_by_symbol: dict[str, list[StockEvent]],
     provider_health: list[ProviderHealthRecord],
     recommendations_by_symbol: dict[str, list[RecommendationTrend]] | None = None,
     earnings_by_symbol: dict[str, list[EarningsEvent]] | None = None,
@@ -124,6 +126,32 @@ def save_run_to_sqlite(
                     analysis.action,
                 ),
             )
+
+        for symbol, events in events_by_symbol.items():
+            for event in events:
+                connection.execute(
+                    """
+                    insert into events(
+                        run_id, symbol, event_type, headline, summary, source, published_at,
+                        sentiment, confidence, impact_score, related_symbols_json, dedupe_hash
+                    )
+                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        run_id,
+                        symbol,
+                        event.event_type,
+                        event.headline,
+                        event.summary,
+                        event.source,
+                        event.published_at,
+                        event.sentiment,
+                        event.confidence,
+                        event.impact_score,
+                        event.related_symbols_json,
+                        event.dedupe_hash,
+                    ),
+                )
 
         for record in provider_health:
             connection.execute(
@@ -259,6 +287,21 @@ def _create_tables(connection: sqlite3.Connection) -> None:
             latency_ms integer,
             created_at text,
             stale integer
+        );
+
+        create table if not exists events (
+            run_id integer,
+            symbol text,
+            event_type text,
+            headline text,
+            summary text,
+            source text,
+            published_at text,
+            sentiment text,
+            confidence integer,
+            impact_score integer,
+            related_symbols_json text,
+            dedupe_hash text
         );
 
         create table if not exists recommendation_trends (

@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from .events import StockEvent
 from .indicators import TechnicalIndicators
 from .providers import EarningsEvent, NewsItem, RecommendationTrend, StockQuote, TopGainer
 from .reasoning import StockAnalysis
@@ -15,6 +16,7 @@ def format_daily_message(
     top_gainers: list[TopGainer],
     indicators_by_symbol: dict[str, TechnicalIndicators] | None,
     analyses: list[StockAnalysis] | None,
+    events_by_symbol: dict[str, list[StockEvent]] | None,
     recommendations_by_symbol: dict[str, list[RecommendationTrend]] | None,
     earnings_by_symbol: dict[str, list[EarningsEvent]] | None,
     timezone: str,
@@ -68,6 +70,16 @@ def format_daily_message(
             )
     else:
         lines.append("Top gainers were not available from the configured provider.")
+
+    if _has_any_items(events_by_symbol):
+        lines.extend(["", "Important Events"])
+        for quote in quotes:
+            events = (events_by_symbol or {}).get(quote.symbol, [])
+            for event in events[:2]:
+                lines.append(
+                    f"{event.symbol}: {event.event_type}, {event.sentiment}, "
+                    f"impact {event.impact_score} - {_shorten(event.summary, 120)}"
+                )
 
     if _has_any_items(recommendations_by_symbol) or _has_any_items(earnings_by_symbol):
         lines.extend(["", "Analyst And Earnings Signals"])

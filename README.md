@@ -125,6 +125,8 @@ Provider health is saved to SQLite for every quote, news, top-gainers, and histo
 
 Provider responses are cached in SQLite using separate TTL values for quotes, news, and history. News items are deduplicated by URL or headline/source hash before being saved or shown.
 
+News is also converted into structured events when possible. Events include type, sentiment, confidence, impact score, related symbols, and the source news hash. They are saved to SQLite and daily memory, and high-impact events can influence the agent's alert decision.
+
 ## Memory
 
 Each run saves the generated message and raw stock data:

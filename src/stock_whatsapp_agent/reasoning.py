@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .events import StockEvent
 from .indicators import TechnicalIndicators
 from .providers import NewsItem, StockQuote
 
@@ -20,9 +21,11 @@ def analyze_stock(
     quote: StockQuote,
     indicators: TechnicalIndicators | None,
     news_items: list[NewsItem],
+    events: list[StockEvent] | None = None,
 ) -> StockAnalysis:
     score = 0
     reasons = []
+    events = events or []
 
     if quote.change_percent is not None:
         if quote.change_percent >= 3:
@@ -58,6 +61,17 @@ def analyze_stock(
     if news_items:
         reasons.append(f"{len(news_items)} recent news item(s) found")
 
+    for event in events:
+        if event.sentiment == "positive":
+            score += 1
+        elif event.sentiment == "negative":
+            score -= 1
+        if event.impact_score >= 75:
+            reasons.append(f"high-impact {event.event_type} event")
+
+    if events:
+        reasons.append(f"{len(events)} structured event(s) extracted")
+
     if score >= 2:
         stance = "bullish watch"
     elif score <= -2:
@@ -65,8 +79,9 @@ def analyze_stock(
     else:
         stance = "neutral watch"
 
+    max_event_impact = max((event.impact_score for event in events), default=0)
     confidence = min(90, max(35, 55 + abs(score) * 10 + min(len(news_items), 3) * 3))
-    alert = "yes" if abs(score) >= 3 or abs(quote.change_percent or 0) >= 5 else "no"
+    alert = "yes" if abs(score) >= 3 or abs(quote.change_percent or 0) >= 5 or max_event_impact >= 80 else "no"
     action = _action_for(stance, alert)
     rationale = "; ".join(reasons) if reasons else "insufficient fresh signals"
 

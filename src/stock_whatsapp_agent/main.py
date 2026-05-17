@@ -16,6 +16,7 @@ from .cache import (
 )
 from .config import Settings, redact_recipients
 from .dashboard import render_chart_widget
+from .events import extract_events_from_news
 from .formatter import format_daily_message
 from .health import ProviderHealthRecord, make_provider_health_record
 from .indicators import calculate_indicators
@@ -64,6 +65,7 @@ def run(dry_run: bool = False) -> int:
         response_cache,
         settings.news_cache_ttl_seconds,
     )
+    events_by_symbol = extract_events_from_news(news_by_symbol)
 
     logger.info("Fetching top gainers")
     top_gainers = _fetch_top_gainers(
@@ -92,6 +94,7 @@ def run(dry_run: bool = False) -> int:
             quote,
             indicators_by_symbol.get(quote.symbol),
             news_by_symbol.get(quote.symbol, []),
+            events_by_symbol.get(quote.symbol, []),
         )
         for quote in quotes
     ]
@@ -122,6 +125,7 @@ def run(dry_run: bool = False) -> int:
         top_gainers=top_gainers,
         indicators_by_symbol=indicators_by_symbol,
         analyses=analyses,
+        events_by_symbol=events_by_symbol,
         recommendations_by_symbol=recommendations_by_symbol,
         earnings_by_symbol=earnings_by_symbol,
         timezone=settings.timezone,
@@ -136,6 +140,7 @@ def run(dry_run: bool = False) -> int:
         history_by_symbol=history_by_symbol,
         indicators_by_symbol=indicators_by_symbol,
         analyses=analyses,
+        events_by_symbol=events_by_symbol,
         provider_health=provider_health,
         recommendations_by_symbol=recommendations_by_symbol,
         earnings_by_symbol=earnings_by_symbol,
@@ -159,6 +164,7 @@ def run(dry_run: bool = False) -> int:
             history_by_symbol=history_by_symbol,
             indicators_by_symbol=indicators_by_symbol,
             analyses=analyses,
+            events_by_symbol=events_by_symbol,
             recommendations_by_symbol=recommendations_by_symbol,
             earnings_by_symbol=earnings_by_symbol,
             message=message,

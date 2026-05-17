@@ -268,6 +268,8 @@ Acceptance criteria:
 
 ## Phase 4: Event Extraction Schema
 
+Status: Done
+
 Goal: turn raw news and filings into structured events.
 
 Files likely touched:
@@ -311,6 +313,15 @@ Steps:
 4. Link events back to news rows by `news_hash`.
 
 5. Add event summary to daily memory JSON.
+
+Completion notes:
+
+- Added `StockEvent` and rule-based event extraction in `events.py`.
+- News can produce structured events for analyst actions, earnings, guidance, acquisitions, partnerships, legal/SEC issues, insider activity, launches, and macro events.
+- Events include sentiment, confidence, impact score, related symbols, and news dedupe hash.
+- Events are saved to SQLite and daily memory JSON.
+- Event impact now contributes to the heuristic reasoning layer.
+- WhatsApp output can show an `Important Events` section when events are available.
 
 Acceptance criteria:
 
