@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stock-whatsapp-agent"
+version = "0.1.0"
+description = "Daily US stock watchlist and top gainers WhatsApp alert agent."
+requires-python = ">=3.11"
+dependencies = [
+  "python-dotenv>=1.0.1",
+  "requests>=2.32.3",
+]
+
+[project.scripts]
+stock-whatsapp-agent = "stock_whatsapp_agent.main:main"
