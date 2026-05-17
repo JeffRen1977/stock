@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from .cache import create_cache_tables
 from .health import ProviderHealthRecord
 from .indicators import TechnicalIndicators
 from .providers import EarningsEvent, HistoricalBar, NewsItem, RecommendationTrend, StockQuote, TopGainer
@@ -185,6 +186,7 @@ def save_run_to_sqlite(
 
 
 def _create_tables(connection: sqlite3.Connection) -> None:
+    create_cache_tables(connection)
     connection.executescript(
         """
         create table if not exists runs (

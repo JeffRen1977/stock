@@ -97,6 +97,9 @@ STOCK_API_PROVIDER=yahoo
 PRIMARY_MARKET_PROVIDER=yahoo
 FALLBACK_MARKET_PROVIDERS=stooq,yahoo
 PROVIDER_TIMEOUT_SECONDS=8
+QUOTE_CACHE_TTL_SECONDS=300
+NEWS_CACHE_TTL_SECONDS=21600
+HISTORY_CACHE_TTL_SECONDS=86400
 ```
 
 Yahoo Finance supports watchlist quotes, stock news search, and top gainers in this implementation without a local API key. Alpha Vantage and Finnhub remain available only if you explicitly configure a `STOCK_API_KEY`.
@@ -119,6 +122,8 @@ API_REQUEST_DELAY_SECONDS=13
 If you see `N/A`, the provider may have returned no data or temporarily blocked the request. For faster testing, reduce this delay.
 
 Provider health is saved to SQLite for every quote, news, top-gainers, and history call. This makes rate limits and fallback behavior visible during later tuning.
+
+Provider responses are cached in SQLite using separate TTL values for quotes, news, and history. News items are deduplicated by URL or headline/source hash before being saved or shown.
 
 ## Memory
 

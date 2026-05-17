@@ -193,6 +193,8 @@ Acceptance criteria:
 
 ## Phase 3: Response Cache And News Deduplication
 
+Status: Done
+
 Goal: reduce repeated API calls and repeated LLM work.
 
 Files likely touched:
@@ -248,6 +250,15 @@ Steps:
    ```
 
 6. Filter duplicate news before formatting and reasoning.
+
+Completion notes:
+
+- Added SQLite-backed `provider_cache` storage with per-operation TTL.
+- Added cache config for quote, news, and history TTLs.
+- Provider calls now check cache before calling the upstream provider.
+- Cache hits are tracked in provider health with `stale=true`.
+- Added `news_dedupe` table and URL/headline hashing.
+- News items are deduplicated before memory, SQLite, and message formatting.
 
 Acceptance criteria:
 

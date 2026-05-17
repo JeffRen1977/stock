@@ -6,6 +6,14 @@ import time
 from collections.abc import Callable
 from typing import TypeVar
 
+from .cache import (
+    ResponseCache,
+    dataclass_to_payload,
+    dedupe_news_items,
+    make_cache_key,
+    payload_to_dataclass,
+    payload_to_dataclass_list,
+)
 from .config import Settings, redact_recipients
 from .dashboard import render_chart_widget
 from .formatter import format_daily_message
@@ -34,6 +42,7 @@ def run(dry_run: bool = False) -> int:
     settings = Settings.load()
     provider = _build_provider_with_fallback(settings)
     provider_health: list[ProviderHealthRecord] = []
+    response_cache = ResponseCache(settings.database_path)
 
     logger.info("Fetching quotes for watchlist: %s", ", ".join(settings.watchlist))
     quotes = _fetch_quotes(
@@ -41,6 +50,8 @@ def run(dry_run: bool = False) -> int:
         settings.watchlist,
         settings.api_request_delay_seconds,
         provider_health,
+        response_cache,
+        settings.quote_cache_ttl_seconds,
     )
 
     logger.info("Fetching latest news for each watchlist stock")
@@ -50,10 +61,18 @@ def run(dry_run: bool = False) -> int:
         settings.news_items_per_stock,
         settings.api_request_delay_seconds,
         provider_health,
+        response_cache,
+        settings.news_cache_ttl_seconds,
     )
 
     logger.info("Fetching top gainers")
-    top_gainers = _fetch_top_gainers(provider, settings.top_gainers_limit, provider_health)
+    top_gainers = _fetch_top_gainers(
+        provider,
+        settings.top_gainers_limit,
+        provider_health,
+        response_cache,
+        settings.quote_cache_ttl_seconds,
+    )
 
     logger.info("Fetching historical prices for technical indicators")
     history_by_symbol = _fetch_history(
@@ -61,6 +80,8 @@ def run(dry_run: bool = False) -> int:
         settings.watchlist,
         settings.api_request_delay_seconds,
         provider_health,
+        response_cache,
+        settings.history_cache_ttl_seconds,
     )
     indicators_by_symbol = {
         symbol: calculate_indicators(symbol, bars)
@@ -81,6 +102,8 @@ def run(dry_run: bool = False) -> int:
         settings.watchlist,
         settings.api_request_delay_seconds,
         provider_health,
+        response_cache,
+        settings.news_cache_ttl_seconds,
     )
 
     logger.info("Fetching earnings calendar")
@@ -89,6 +112,8 @@ def run(dry_run: bool = False) -> int:
         settings.watchlist,
         settings.api_request_delay_seconds,
         provider_health,
+        response_cache,
+        settings.news_cache_ttl_seconds,
     )
 
     message = format_daily_message(
@@ -179,16 +204,22 @@ def _fetch_quotes(
     watchlist: tuple[str, ...],
     request_delay_seconds: float,
     provider_health: list[ProviderHealthRecord],
+    response_cache: ResponseCache,
+    cache_ttl_seconds: int,
 ) -> list[StockQuote]:
     quotes = []
     for symbol in watchlist:
         try:
             quotes.append(
-                _track_provider_call(
+                _cached_provider_call(
                     provider,
                     f"get_quote:{symbol}",
                     lambda symbol=symbol: provider.get_quote(symbol),
                     provider_health,
+                    response_cache,
+                    cache_ttl_seconds,
+                    dataclass_to_payload,
+                    lambda payload: payload_to_dataclass(StockQuote, payload),
                 )
             )
         except Exception as exc:
@@ -205,16 +236,25 @@ def _fetch_news(
     limit: int,
     request_delay_seconds: float,
     provider_health: list[ProviderHealthRecord],
+    response_cache: ResponseCache,
+    cache_ttl_seconds: int,
 ) -> dict[str, list[NewsItem]]:
     news_by_symbol = {}
     for symbol in watchlist:
         try:
-            news_by_symbol[symbol] = _track_provider_call(
+            items = _cached_provider_call(
                 provider,
                 f"get_news:{symbol}",
                 lambda symbol=symbol: provider.get_news(symbol, limit),
                 provider_health,
+                response_cache,
+                cache_ttl_seconds,
+                dataclass_to_payload,
+                lambda payload: payload_to_dataclass_list(NewsItem, payload),
             )
+            items = dedupe_news_items(items)
+            response_cache.record_news_seen(items)
+            news_by_symbol[symbol] = items
         except Exception as exc:
             logger.warning("Failed to fetch news for %s: %s", symbol, exc)
             news_by_symbol[symbol] = []
@@ -227,13 +267,19 @@ def _fetch_top_gainers(
     provider,
     limit: int,
     provider_health: list[ProviderHealthRecord],
+    response_cache: ResponseCache,
+    cache_ttl_seconds: int,
 ) -> list[TopGainer]:
     try:
-        return _track_provider_call(
+        return _cached_provider_call(
             provider,
             "get_top_gainers",
             lambda: provider.get_top_gainers(limit),
             provider_health,
+            response_cache,
+            cache_ttl_seconds,
+            dataclass_to_payload,
+            lambda payload: payload_to_dataclass_list(TopGainer, payload),
         )
     except Exception as exc:
         logger.warning("Failed to fetch top gainers: %s", exc)
@@ -245,15 +291,21 @@ def _fetch_history(
     watchlist: tuple[str, ...],
     request_delay_seconds: float,
     provider_health: list[ProviderHealthRecord],
+    response_cache: ResponseCache,
+    cache_ttl_seconds: int,
 ) -> dict[str, list[HistoricalBar]]:
     history_by_symbol = {}
     for symbol in watchlist:
         try:
-            history_by_symbol[symbol] = _track_provider_call(
+            history_by_symbol[symbol] = _cached_provider_call(
                 provider,
                 f"get_history:{symbol}",
                 lambda symbol=symbol: provider.get_history(symbol),
                 provider_health,
+                response_cache,
+                cache_ttl_seconds,
+                dataclass_to_payload,
+                lambda payload: payload_to_dataclass_list(HistoricalBar, payload),
             )
         except Exception as exc:
             logger.warning("Failed to fetch price history for %s: %s", symbol, exc)
@@ -268,15 +320,21 @@ def _fetch_recommendations(
     watchlist: tuple[str, ...],
     request_delay_seconds: float,
     provider_health: list[ProviderHealthRecord],
+    response_cache: ResponseCache,
+    cache_ttl_seconds: int,
 ) -> dict[str, list[RecommendationTrend]]:
     recommendations_by_symbol = {}
     for symbol in watchlist:
         try:
-            recommendations_by_symbol[symbol] = _track_provider_call(
+            recommendations_by_symbol[symbol] = _cached_provider_call(
                 provider,
                 f"get_recommendation_trends:{symbol}",
                 lambda symbol=symbol: provider.get_recommendation_trends(symbol),
                 provider_health,
+                response_cache,
+                cache_ttl_seconds,
+                dataclass_to_payload,
+                lambda payload: payload_to_dataclass_list(RecommendationTrend, payload),
             )
         except Exception as exc:
             logger.warning("Failed to fetch recommendation trends for %s: %s", symbol, exc)
@@ -291,15 +349,21 @@ def _fetch_earnings(
     watchlist: tuple[str, ...],
     request_delay_seconds: float,
     provider_health: list[ProviderHealthRecord],
+    response_cache: ResponseCache,
+    cache_ttl_seconds: int,
 ) -> dict[str, list[EarningsEvent]]:
     earnings_by_symbol = {}
     for symbol in watchlist:
         try:
-            earnings_by_symbol[symbol] = _track_provider_call(
+            earnings_by_symbol[symbol] = _cached_provider_call(
                 provider,
                 f"get_earnings_events:{symbol}",
                 lambda symbol=symbol: provider.get_earnings_events(symbol),
                 provider_health,
+                response_cache,
+                cache_ttl_seconds,
+                dataclass_to_payload,
+                lambda payload: payload_to_dataclass_list(EarningsEvent, payload),
             )
         except Exception as exc:
             logger.warning("Failed to fetch earnings events for %s: %s", symbol, exc)
@@ -307,6 +371,43 @@ def _fetch_earnings(
         finally:
             _sleep_between_api_calls(request_delay_seconds)
     return earnings_by_symbol
+
+
+def _cached_provider_call(
+    provider,
+    operation: str,
+    call: Callable[[], T],
+    provider_health: list[ProviderHealthRecord],
+    response_cache: ResponseCache,
+    cache_ttl_seconds: int,
+    serialize: Callable[[T], object],
+    deserialize: Callable[[object], T],
+) -> T:
+    provider_name = getattr(provider, "provider_name", provider.__class__.__name__)
+    cache_key = make_cache_key(provider_name, operation)
+    cached_payload = response_cache.get(cache_key)
+    if cached_payload is not None:
+        provider_health.append(
+            make_provider_health_record(
+                provider_name=provider_name,
+                operation=operation,
+                success=True,
+                error=None,
+                latency_ms=0,
+                stale=True,
+            )
+        )
+        return deserialize(cached_payload)
+
+    result = _track_provider_call(provider, operation, call, provider_health)
+    response_cache.set(
+        cache_key=cache_key,
+        provider_name=provider_name,
+        operation=operation,
+        payload=serialize(result),
+        ttl_seconds=cache_ttl_seconds,
+    )
+    return result
 
 
 def _track_provider_call(

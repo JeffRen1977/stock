@@ -60,6 +60,9 @@ class Settings:
     primary_market_provider: str
     fallback_market_providers: tuple[str, ...]
     provider_timeout_seconds: float
+    quote_cache_ttl_seconds: int
+    news_cache_ttl_seconds: int
+    history_cache_ttl_seconds: int
     whatsapp_to: tuple[str, ...]
     watchlist: tuple[str, ...]
     top_gainers_limit: int
@@ -102,6 +105,9 @@ class Settings:
                 provider.lower() for provider in _split_csv(os.getenv("FALLBACK_MARKET_PROVIDERS", "stooq,yahoo"))
             ),
             provider_timeout_seconds=_optional_float("PROVIDER_TIMEOUT_SECONDS", 8.0),
+            quote_cache_ttl_seconds=_optional_int("QUOTE_CACHE_TTL_SECONDS", 300),
+            news_cache_ttl_seconds=_optional_int("NEWS_CACHE_TTL_SECONDS", 21600),
+            history_cache_ttl_seconds=_optional_int("HISTORY_CACHE_TTL_SECONDS", 86400),
             whatsapp_to=recipients,
             watchlist=watchlist,
             top_gainers_limit=_optional_int("TOP_GAINERS_LIMIT", 5),
