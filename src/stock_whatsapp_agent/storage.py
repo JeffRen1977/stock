@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from .health import ProviderHealthRecord
 from .indicators import TechnicalIndicators
-from .providers import HistoricalBar, NewsItem, StockQuote, TopGainer
+from .providers import EarningsEvent, HistoricalBar, NewsItem, RecommendationTrend, StockQuote, TopGainer
 from .reasoning import StockAnalysis
 
 
@@ -22,6 +22,8 @@ def save_run_to_sqlite(
     indicators_by_symbol: dict[str, TechnicalIndicators],
     analyses: list[StockAnalysis],
     provider_health: list[ProviderHealthRecord],
+    recommendations_by_symbol: dict[str, list[RecommendationTrend]] | None = None,
+    earnings_by_symbol: dict[str, list[EarningsEvent]] | None = None,
 ) -> None:
     database_path.parent.mkdir(parents=True, exist_ok=True)
     generated_at = datetime.now(ZoneInfo(timezone)).isoformat()
@@ -142,6 +144,45 @@ def save_run_to_sqlite(
                 ),
             )
 
+        for symbol, trends in (recommendations_by_symbol or {}).items():
+            for trend in trends:
+                connection.execute(
+                    """
+                    insert into recommendation_trends(
+                        run_id, symbol, period, strong_buy, buy, hold, sell, strong_sell
+                    )
+                    values (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        run_id,
+                        symbol,
+                        trend.period,
+                        trend.strong_buy,
+                        trend.buy,
+                        trend.hold,
+                        trend.sell,
+                        trend.strong_sell,
+                    ),
+                )
+
+        for symbol, events in (earnings_by_symbol or {}).items():
+            for event in events:
+                connection.execute(
+                    """
+                    insert into earnings_events(
+                        run_id, symbol, date, eps_estimate, revenue_estimate
+                    )
+                    values (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        run_id,
+                        symbol,
+                        event.date,
+                        event.eps_estimate,
+                        event.revenue_estimate,
+                    ),
+                )
+
 
 def _create_tables(connection: sqlite3.Connection) -> None:
     connection.executescript(
@@ -216,6 +257,25 @@ def _create_tables(connection: sqlite3.Connection) -> None:
             latency_ms integer,
             created_at text,
             stale integer
+        );
+
+        create table if not exists recommendation_trends (
+            run_id integer,
+            symbol text,
+            period text,
+            strong_buy integer,
+            buy integer,
+            hold integer,
+            sell integer,
+            strong_sell integer
+        );
+
+        create table if not exists earnings_events (
+            run_id integer,
+            symbol text,
+            date text,
+            eps_estimate real,
+            revenue_estimate real
         );
         """
     )

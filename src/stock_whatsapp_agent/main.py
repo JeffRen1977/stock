@@ -12,7 +12,15 @@ from .formatter import format_daily_message
 from .health import ProviderHealthRecord, make_provider_health_record
 from .indicators import calculate_indicators
 from .memory import save_daily_memory
-from .providers import HistoricalBar, NewsItem, StockQuote, TopGainer, build_provider
+from .providers import (
+    EarningsEvent,
+    HistoricalBar,
+    NewsItem,
+    RecommendationTrend,
+    StockQuote,
+    TopGainer,
+    build_provider,
+)
 from .reasoning import analyze_stock
 from .storage import save_run_to_sqlite
 from .whatsapp import build_whatsapp_sender
@@ -24,11 +32,7 @@ T = TypeVar("T")
 
 def run(dry_run: bool = False) -> int:
     settings = Settings.load()
-    provider = build_provider(
-        settings.stock_api_provider,
-        settings.stock_api_key,
-        settings.provider_timeout_seconds,
-    )
+    provider = _build_provider_with_fallback(settings)
     provider_health: list[ProviderHealthRecord] = []
 
     logger.info("Fetching quotes for watchlist: %s", ", ".join(settings.watchlist))
@@ -71,12 +75,30 @@ def run(dry_run: bool = False) -> int:
         for quote in quotes
     ]
 
+    logger.info("Fetching recommendation trends")
+    recommendations_by_symbol = _fetch_recommendations(
+        provider,
+        settings.watchlist,
+        settings.api_request_delay_seconds,
+        provider_health,
+    )
+
+    logger.info("Fetching earnings calendar")
+    earnings_by_symbol = _fetch_earnings(
+        provider,
+        settings.watchlist,
+        settings.api_request_delay_seconds,
+        provider_health,
+    )
+
     message = format_daily_message(
         quotes=quotes,
         news_by_symbol=news_by_symbol,
         top_gainers=top_gainers,
         indicators_by_symbol=indicators_by_symbol,
         analyses=analyses,
+        recommendations_by_symbol=recommendations_by_symbol,
+        earnings_by_symbol=earnings_by_symbol,
         timezone=settings.timezone,
     )
 
@@ -90,6 +112,8 @@ def run(dry_run: bool = False) -> int:
         indicators_by_symbol=indicators_by_symbol,
         analyses=analyses,
         provider_health=provider_health,
+        recommendations_by_symbol=recommendations_by_symbol,
+        earnings_by_symbol=earnings_by_symbol,
     )
     logger.info("Saved structured stock data to %s", settings.database_path)
 
@@ -110,6 +134,8 @@ def run(dry_run: bool = False) -> int:
             history_by_symbol=history_by_symbol,
             indicators_by_symbol=indicators_by_symbol,
             analyses=analyses,
+            recommendations_by_symbol=recommendations_by_symbol,
+            earnings_by_symbol=earnings_by_symbol,
             message=message,
             timezone=settings.timezone,
             memory_dir=settings.memory_dir,
@@ -132,6 +158,20 @@ def run(dry_run: bool = False) -> int:
             logger.error("Failed to send WhatsApp message to %s: %s", safe_recipient, result.error)
 
     return 0 if any(result.success for result in results) else 1
+
+
+def _build_provider_with_fallback(settings: Settings):
+    try:
+        return build_provider(
+            settings.stock_api_provider,
+            settings.stock_api_key,
+            settings.provider_timeout_seconds,
+        )
+    except ValueError as exc:
+        if settings.stock_api_provider == "finnhub":
+            logger.warning("Finnhub is configured but unavailable: %s. Falling back to Yahoo.", exc)
+            return build_provider("yahoo", None, settings.provider_timeout_seconds)
+        raise
 
 
 def _fetch_quotes(
@@ -221,6 +261,52 @@ def _fetch_history(
         finally:
             _sleep_between_api_calls(request_delay_seconds)
     return history_by_symbol
+
+
+def _fetch_recommendations(
+    provider,
+    watchlist: tuple[str, ...],
+    request_delay_seconds: float,
+    provider_health: list[ProviderHealthRecord],
+) -> dict[str, list[RecommendationTrend]]:
+    recommendations_by_symbol = {}
+    for symbol in watchlist:
+        try:
+            recommendations_by_symbol[symbol] = _track_provider_call(
+                provider,
+                f"get_recommendation_trends:{symbol}",
+                lambda symbol=symbol: provider.get_recommendation_trends(symbol),
+                provider_health,
+            )
+        except Exception as exc:
+            logger.warning("Failed to fetch recommendation trends for %s: %s", symbol, exc)
+            recommendations_by_symbol[symbol] = []
+        finally:
+            _sleep_between_api_calls(request_delay_seconds)
+    return recommendations_by_symbol
+
+
+def _fetch_earnings(
+    provider,
+    watchlist: tuple[str, ...],
+    request_delay_seconds: float,
+    provider_health: list[ProviderHealthRecord],
+) -> dict[str, list[EarningsEvent]]:
+    earnings_by_symbol = {}
+    for symbol in watchlist:
+        try:
+            earnings_by_symbol[symbol] = _track_provider_call(
+                provider,
+                f"get_earnings_events:{symbol}",
+                lambda symbol=symbol: provider.get_earnings_events(symbol),
+                provider_health,
+            )
+        except Exception as exc:
+            logger.warning("Failed to fetch earnings events for %s: %s", symbol, exc)
+            earnings_by_symbol[symbol] = []
+        finally:
+            _sleep_between_api_calls(request_delay_seconds)
+    return earnings_by_symbol
 
 
 def _track_provider_call(

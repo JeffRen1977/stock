@@ -96,7 +96,7 @@ class Settings:
 
         return cls(
             stock_api_provider=primary_market_provider,
-            stock_api_key=os.getenv("STOCK_API_KEY", "").strip() or None,
+            stock_api_key=_provider_api_key(primary_market_provider),
             primary_market_provider=primary_market_provider,
             fallback_market_providers=tuple(
                 provider.lower() for provider in _split_csv(os.getenv("FALLBACK_MARKET_PROVIDERS", "stooq,yahoo"))
@@ -126,6 +126,22 @@ def redact_recipients(recipients: Iterable[str]) -> list[str]:
         else:
             redacted.append(f"{recipient[:10]}***{recipient[-2:]}")
     return redacted
+
+
+def _provider_api_key(provider_name: str) -> str | None:
+    if provider_name == "finnhub":
+        return (
+            os.getenv("FINNHUB_API_KEY", "").strip()
+            or os.getenv("STOCK_API_KEY", "").strip()
+            or None
+        )
+    if provider_name == "alphavantage":
+        return (
+            os.getenv("ALPHAVANTAGE_API_KEY", "").strip()
+            or os.getenv("STOCK_API_KEY", "").strip()
+            or None
+        )
+    return os.getenv("STOCK_API_KEY", "").strip() or None
 
 
 def _load_env_file(path: Path) -> None:

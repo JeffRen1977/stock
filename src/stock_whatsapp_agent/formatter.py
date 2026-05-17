@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from .indicators import TechnicalIndicators
-from .providers import NewsItem, StockQuote, TopGainer
+from .providers import EarningsEvent, NewsItem, RecommendationTrend, StockQuote, TopGainer
 from .reasoning import StockAnalysis
 
 
@@ -14,6 +15,8 @@ def format_daily_message(
     top_gainers: list[TopGainer],
     indicators_by_symbol: dict[str, TechnicalIndicators] | None,
     analyses: list[StockAnalysis] | None,
+    recommendations_by_symbol: dict[str, list[RecommendationTrend]] | None,
+    earnings_by_symbol: dict[str, list[EarningsEvent]] | None,
     timezone: str,
 ) -> str:
     now = datetime.now(ZoneInfo(timezone))
@@ -65,6 +68,27 @@ def format_daily_message(
             )
     else:
         lines.append("Top gainers were not available from the configured provider.")
+
+    if _has_any_items(recommendations_by_symbol) or _has_any_items(earnings_by_symbol):
+        lines.extend(["", "Analyst And Earnings Signals"])
+        for quote in quotes:
+            recommendation = _latest_recommendation(
+                (recommendations_by_symbol or {}).get(quote.symbol, [])
+            )
+            earnings = (earnings_by_symbol or {}).get(quote.symbol, [])
+            if recommendation is None and not earnings:
+                continue
+
+            parts = []
+            if recommendation:
+                buy_count = (recommendation.strong_buy or 0) + (recommendation.buy or 0)
+                parts.append(
+                    f"analysts {buy_count} buy/strong-buy, "
+                    f"{recommendation.hold or 0} hold"
+                )
+            if earnings:
+                parts.append(f"next earnings {earnings[0].date}")
+            lines.append(f"{quote.symbol}: {'; '.join(parts)}")
 
     if analyses:
         lines.extend(["", "Agent Actions"])
@@ -120,6 +144,14 @@ def _number(value: float | None) -> str:
     if value is None:
         return "N/A"
     return f"{value:.1f}"
+
+
+def _latest_recommendation(items: list[RecommendationTrend]) -> RecommendationTrend | None:
+    return items[0] if items else None
+
+
+def _has_any_items(values_by_symbol: dict[str, list[Any]] | None) -> bool:
+    return any(values_by_symbol.values()) if values_by_symbol else False
 
 
 def _shorten(value: str, max_length: int) -> str:

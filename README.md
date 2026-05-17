@@ -101,6 +101,15 @@ PROVIDER_TIMEOUT_SECONDS=8
 
 Yahoo Finance supports watchlist quotes, stock news search, and top gainers in this implementation without a local API key. Alpha Vantage and Finnhub remain available only if you explicitly configure a `STOCK_API_KEY`.
 
+To use Finnhub as the primary provider:
+
+```bash
+PRIMARY_MARKET_PROVIDER=finnhub
+FINNHUB_API_KEY=your_finnhub_key
+```
+
+Finnhub adds company news, recommendation trends, and earnings calendar signals when the API key is configured. If Finnhub is selected without a key, the agent falls back to Yahoo/Stooq instead of stopping the run.
+
 The default config waits between requests:
 
 ```bash

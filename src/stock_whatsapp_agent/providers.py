@@ -44,6 +44,25 @@ class HistoricalBar:
     volume: int | None
 
 
+@dataclass(frozen=True)
+class RecommendationTrend:
+    symbol: str
+    period: str
+    strong_buy: int | None
+    buy: int | None
+    hold: int | None
+    sell: int | None
+    strong_sell: int | None
+
+
+@dataclass(frozen=True)
+class EarningsEvent:
+    symbol: str
+    date: str
+    eps_estimate: float | None
+    revenue_estimate: float | None
+
+
 class StockDataProvider(Protocol):
     def get_quote(self, symbol: str) -> StockQuote:
         ...
@@ -55,6 +74,12 @@ class StockDataProvider(Protocol):
         ...
 
     def get_history(self, symbol: str, period: str = "1mo", interval: str = "1d") -> list[HistoricalBar]:
+        ...
+
+    def get_recommendation_trends(self, symbol: str) -> list[RecommendationTrend]:
+        ...
+
+    def get_earnings_events(self, symbol: str) -> list[EarningsEvent]:
         ...
 
 
@@ -244,6 +269,12 @@ class YahooFinanceProvider:
             )
         return bars
 
+    def get_recommendation_trends(self, symbol: str) -> list[RecommendationTrend]:
+        return []
+
+    def get_earnings_events(self, symbol: str) -> list[EarningsEvent]:
+        return []
+
 
 class AlphaVantageProvider:
     provider_name = "alphavantage"
@@ -328,6 +359,12 @@ class AlphaVantageProvider:
     def get_history(self, symbol: str, period: str = "1mo", interval: str = "1d") -> list[HistoricalBar]:
         return []
 
+    def get_recommendation_trends(self, symbol: str) -> list[RecommendationTrend]:
+        return []
+
+    def get_earnings_events(self, symbol: str) -> list[EarningsEvent]:
+        return []
+
 
 class FinnhubProvider:
     provider_name = "finnhub"
@@ -343,7 +380,7 @@ class FinnhubProvider:
             response = self.session.get(
                 f"{self.base_url}/{path}",
                 params={**params, "token": self.api_key},
-            timeout=self.timeout_seconds,
+                timeout=self.timeout_seconds,
             )
             response.raise_for_status()
         except requests.RequestException as exc:
@@ -404,6 +441,51 @@ class FinnhubProvider:
 
     def get_history(self, symbol: str, period: str = "1mo", interval: str = "1d") -> list[HistoricalBar]:
         return []
+
+    def get_recommendation_trends(self, symbol: str) -> list[RecommendationTrend]:
+        payload = self._get("stock/recommendation", {"symbol": symbol})
+        if not isinstance(payload, list):
+            return []
+
+        trends = []
+        for item in payload:
+            trends.append(
+                RecommendationTrend(
+                    symbol=symbol,
+                    period=str(item.get("period", "")).strip() or "unknown",
+                    strong_buy=_to_int(item.get("strongBuy")),
+                    buy=_to_int(item.get("buy")),
+                    hold=_to_int(item.get("hold")),
+                    sell=_to_int(item.get("sell")),
+                    strong_sell=_to_int(item.get("strongSell")),
+                )
+            )
+        return trends
+
+    def get_earnings_events(self, symbol: str) -> list[EarningsEvent]:
+        today = date.today()
+        payload = self._get(
+            "calendar/earnings",
+            {
+                "symbol": symbol,
+                "from": today.isoformat(),
+                "to": (today + timedelta(days=90)).isoformat(),
+            },
+        )
+        if not isinstance(payload, dict):
+            return []
+
+        events = []
+        for item in payload.get("earningsCalendar", []):
+            events.append(
+                EarningsEvent(
+                    symbol=symbol,
+                    date=str(item.get("date", "")).strip() or "unknown",
+                    eps_estimate=_to_float(item.get("epsEstimate")),
+                    revenue_estimate=_to_float(item.get("revenueEstimate")),
+                )
+            )
+        return events
 
 
 def build_provider(

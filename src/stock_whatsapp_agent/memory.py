@@ -7,7 +7,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .indicators import TechnicalIndicators
-from .providers import HistoricalBar, NewsItem, StockQuote, TopGainer
+from .providers import EarningsEvent, HistoricalBar, NewsItem, RecommendationTrend, StockQuote, TopGainer
 from .reasoning import StockAnalysis
 
 
@@ -18,6 +18,8 @@ def save_daily_memory(
     history_by_symbol: dict[str, list[HistoricalBar]],
     indicators_by_symbol: dict[str, TechnicalIndicators],
     analyses: list[StockAnalysis],
+    recommendations_by_symbol: dict[str, list[RecommendationTrend]] | None,
+    earnings_by_symbol: dict[str, list[EarningsEvent]] | None,
     message: str,
     timezone: str,
     memory_dir: Path,
@@ -43,6 +45,14 @@ def save_daily_memory(
             for symbol, indicator in indicators_by_symbol.items()
         },
         "analyses": [asdict(analysis) for analysis in analyses],
+        "recommendations_by_symbol": {
+            symbol: [asdict(item) for item in items]
+            for symbol, items in (recommendations_by_symbol or {}).items()
+        },
+        "earnings_by_symbol": {
+            symbol: [asdict(item) for item in items]
+            for symbol, items in (earnings_by_symbol or {}).items()
+        },
         "message": message,
     }
 

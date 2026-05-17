@@ -123,6 +123,8 @@ Acceptance criteria:
 
 ## Phase 2: Finnhub Primary Provider
 
+Status: Done
+
 Goal: use Finnhub as the primary data source for richer and more reliable stock intelligence.
 
 Files likely touched:
@@ -173,6 +175,15 @@ Steps:
    ```text
    429 -> mark provider limited -> use fallback
    ```
+
+Completion notes:
+
+- `FINNHUB_API_KEY` is supported as the provider-specific key.
+- `PRIMARY_MARKET_PROVIDER=finnhub` selects Finnhub when a key is available.
+- Missing Finnhub credentials fall back to Yahoo/Stooq instead of stopping the run.
+- Finnhub quote and company-news support remain available.
+- Finnhub recommendation trends and earnings calendar signals are fetched and saved when available.
+- Recommendation and earnings records are stored in SQLite and daily memory.
 
 Acceptance criteria:
 
