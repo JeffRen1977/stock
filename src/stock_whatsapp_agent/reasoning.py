@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from .events import StockEvent
 from .indicators import TechnicalIndicators
+from .memory_retrieval import MemoryContext
 from .providers import NewsItem, StockQuote
 
 
@@ -22,6 +23,7 @@ def analyze_stock(
     indicators: TechnicalIndicators | None,
     news_items: list[NewsItem],
     events: list[StockEvent] | None = None,
+    memory_context: MemoryContext | None = None,
 ) -> StockAnalysis:
     score = 0
     reasons = []
@@ -72,6 +74,20 @@ def analyze_stock(
     if events:
         reasons.append(f"{len(events)} structured event(s) extracted")
 
+    if memory_context:
+        if memory_context.prior_stance:
+            reasons.append(f"prior stance was {memory_context.prior_stance}")
+        if memory_context.repeated_event_count:
+            score -= min(memory_context.repeated_event_count, 2)
+            reasons.append(f"{memory_context.repeated_event_count} repeated event(s) from memory")
+        if memory_context.recent_alert_count:
+            confidence_penalty = min(memory_context.recent_alert_count * 3, 9)
+        else:
+            confidence_penalty = 0
+        reasons.append(memory_context.changed_since_previous)
+    else:
+        confidence_penalty = 0
+
     if score >= 2:
         stance = "bullish watch"
     elif score <= -2:
@@ -80,7 +96,7 @@ def analyze_stock(
         stance = "neutral watch"
 
     max_event_impact = max((event.impact_score for event in events), default=0)
-    confidence = min(90, max(35, 55 + abs(score) * 10 + min(len(news_items), 3) * 3))
+    confidence = min(90, max(35, 55 + abs(score) * 10 + min(len(news_items), 3) * 3 - confidence_penalty))
     alert = "yes" if abs(score) >= 3 or abs(quote.change_percent or 0) >= 5 or max_event_impact >= 80 else "no"
     action = _action_for(stance, alert)
     rationale = "; ".join(reasons) if reasons else "insufficient fresh signals"

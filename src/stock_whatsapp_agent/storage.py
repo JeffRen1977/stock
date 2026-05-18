@@ -10,6 +10,7 @@ from .cache import create_cache_tables
 from .events import StockEvent
 from .health import ProviderHealthRecord
 from .indicators import TechnicalIndicators
+from .memory_retrieval import MemoryRetrieval
 from .providers import EarningsEvent, HistoricalBar, NewsItem, RecommendationTrend, StockQuote, TopGainer
 from .reasoning import StockAnalysis
 from .sec import SecFiling
@@ -26,6 +27,7 @@ def save_run_to_sqlite(
     analyses: list[StockAnalysis],
     events_by_symbol: dict[str, list[StockEvent]],
     filings_by_symbol: dict[str, list[SecFiling]],
+    memory_retrievals: list[MemoryRetrieval],
     provider_health: list[ProviderHealthRecord],
     recommendations_by_symbol: dict[str, list[RecommendationTrend]] | None = None,
     earnings_by_symbol: dict[str, list[EarningsEvent]] | None = None,
@@ -174,6 +176,21 @@ def save_run_to_sqlite(
                         filing.title,
                     ),
                 )
+
+        for retrieval in memory_retrievals:
+            connection.execute(
+                """
+                insert into memory_retrievals(run_id, symbol, memory_type, retrieved_id, reason)
+                values (?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    retrieval.symbol,
+                    retrieval.memory_type,
+                    retrieval.retrieved_id,
+                    retrieval.reason,
+                ),
+            )
 
         for record in provider_health:
             connection.execute(
@@ -336,6 +353,14 @@ def _create_tables(connection: sqlite3.Connection) -> None:
             title text
         );
 
+        create table if not exists memory_retrievals (
+            run_id integer,
+            symbol text,
+            memory_type text,
+            retrieved_id text,
+            reason text
+        );
+
         create table if not exists recommendation_trends (
             run_id integer,
             symbol text,
@@ -356,3 +381,35 @@ def _create_tables(connection: sqlite3.Connection) -> None:
         );
         """
     )
+
+
+def ensure_schema(database_path: Path) -> None:
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(database_path) as connection:
+        _create_tables(connection)
+
+
+def save_memory_retrievals(
+    database_path: Path,
+    retrievals: list[MemoryRetrieval],
+) -> None:
+    ensure_schema(database_path)
+    with sqlite3.connect(database_path) as connection:
+        row = connection.execute("select id from runs order by id desc limit 1").fetchone()
+        if row is None:
+            return
+        run_id = row[0]
+        for retrieval in retrievals:
+            connection.execute(
+                """
+                insert into memory_retrievals(run_id, symbol, memory_type, retrieved_id, reason)
+                values (?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    retrieval.symbol,
+                    retrieval.memory_type,
+                    retrieval.retrieved_id,
+                    retrieval.reason,
+                ),
+            )

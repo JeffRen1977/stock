@@ -407,6 +407,8 @@ Acceptance criteria:
 
 ## Phase 6: Memory Retrieval
 
+Status: Done
+
 Goal: use stored memory to improve today's reasoning.
 
 Files likely touched:
@@ -454,6 +456,15 @@ Steps:
    retrieved_id
    reason
    ```
+
+Completion notes:
+
+- Added `memory_retrieval.py` with recent analysis, event, alert, and narrative retrieval helpers.
+- Added per-symbol `MemoryContext` with prior stance, prior confidence, recent alerts, recent events, repeated event count, and change summary.
+- Added `memory_retrievals` SQLite table.
+- Memory context is passed into reasoning and can reduce confidence for repeated recent alerts/events.
+- Daily WhatsApp output includes a `Memory Comparison` section.
+- Daily memory JSON includes memory contexts.
 
 Acceptance criteria:
 

@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 from .events import StockEvent
 from .indicators import TechnicalIndicators
+from .memory_retrieval import MemoryContext
 from .providers import EarningsEvent, NewsItem, RecommendationTrend, StockQuote, TopGainer
 from .reasoning import StockAnalysis
 from .sec import SecFiling
@@ -19,6 +20,7 @@ def format_daily_message(
     analyses: list[StockAnalysis] | None,
     events_by_symbol: dict[str, list[StockEvent]] | None,
     filings_by_symbol: dict[str, list[SecFiling]] | None,
+    memory_contexts: dict[str, MemoryContext] | None,
     recommendations_by_symbol: dict[str, list[RecommendationTrend]] | None,
     earnings_by_symbol: dict[str, list[EarningsEvent]] | None,
     timezone: str,
@@ -89,6 +91,17 @@ def format_daily_message(
             filings = (filings_by_symbol or {}).get(quote.symbol, [])
             for filing in filings[:2]:
                 lines.append(f"{quote.symbol}: {filing.form_type} filed {filing.filing_date} - {filing.title}")
+
+    if memory_contexts:
+        lines.extend(["", "Memory Comparison"])
+        for quote in quotes:
+            context = memory_contexts.get(quote.symbol)
+            if context is None:
+                continue
+            lines.append(
+                f"{quote.symbol}: {context.changed_since_previous}; "
+                f"prior stance {context.prior_stance or 'none'}"
+            )
 
     if _has_any_items(recommendations_by_symbol) or _has_any_items(earnings_by_symbol):
         lines.extend(["", "Analyst And Earnings Signals"])

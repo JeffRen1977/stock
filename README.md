@@ -137,6 +137,12 @@ SEC_FILINGS_LIMIT=5
 
 Recent filings are saved to SQLite and daily memory, and important filings are converted into structured events.
 
+Memory retrieval can compare current events with prior analyses, recent alerts, and recent events so repeated information is treated differently from genuinely new information. It is disabled by default while the local workflow is being stabilized:
+
+```bash
+ENABLE_MEMORY_RETRIEVAL=true
+```
+
 ## Memory
 
 Each run saves the generated message and raw stock data:

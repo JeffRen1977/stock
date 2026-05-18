@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from .events import StockEvent
 from .indicators import TechnicalIndicators
+from .memory_retrieval import MemoryContext
 from .providers import EarningsEvent, HistoricalBar, NewsItem, RecommendationTrend, StockQuote, TopGainer
 from .reasoning import StockAnalysis
 from .sec import SecFiling
@@ -22,6 +23,7 @@ def save_daily_memory(
     analyses: list[StockAnalysis],
     events_by_symbol: dict[str, list[StockEvent]],
     filings_by_symbol: dict[str, list[SecFiling]],
+    memory_contexts: dict[str, MemoryContext],
     recommendations_by_symbol: dict[str, list[RecommendationTrend]] | None,
     earnings_by_symbol: dict[str, list[EarningsEvent]] | None,
     message: str,
@@ -56,6 +58,10 @@ def save_daily_memory(
         "filings_by_symbol": {
             symbol: [asdict(filing) for filing in filings]
             for symbol, filings in filings_by_symbol.items()
+        },
+        "memory_contexts": {
+            symbol: asdict(context)
+            for symbol, context in memory_contexts.items()
         },
         "recommendations_by_symbol": {
             symbol: [asdict(item) for item in items]

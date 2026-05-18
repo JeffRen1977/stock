@@ -75,6 +75,7 @@ class Settings:
     chart_symbol: str
     generate_chart_widget: bool
     enable_sec_ingestion: bool
+    enable_memory_retrieval: bool
     sec_user_agent: str
     sec_filings_limit: int
     timezone: str
@@ -123,6 +124,7 @@ class Settings:
             chart_symbol=os.getenv("CHART_SYMBOL", "NVDA").strip().upper(),
             generate_chart_widget=_optional_bool("GENERATE_CHART_WIDGET", True),
             enable_sec_ingestion=_optional_bool("ENABLE_SEC_INGESTION", True),
+            enable_memory_retrieval=_optional_bool("ENABLE_MEMORY_RETRIEVAL", False),
             sec_user_agent=os.getenv(
                 "SEC_USER_AGENT",
                 "OpenClawStockAgent/0.1 contact@example.com",

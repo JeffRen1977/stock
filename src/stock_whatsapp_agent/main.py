@@ -21,6 +21,7 @@ from .formatter import format_daily_message
 from .health import ProviderHealthRecord, make_provider_health_record
 from .indicators import calculate_indicators
 from .memory import save_daily_memory
+from .memory_retrieval import build_memory_contexts, flatten_retrievals
 from .providers import (
     EarningsEvent,
     HistoricalBar,
@@ -32,7 +33,7 @@ from .providers import (
 )
 from .reasoning import analyze_stock
 from .sec import SecEdgarClient, SecFiling
-from .storage import save_run_to_sqlite
+from .storage import save_memory_retrievals, save_run_to_sqlite
 from .whatsapp import build_whatsapp_sender
 
 
@@ -40,8 +41,21 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-def run(dry_run: bool = False) -> int:
+def run(dry_run: bool = False, skip_fetch: bool = False) -> int:
     settings = Settings.load()
+    if skip_fetch:
+        if not settings.enable_memory_retrieval:
+            print("Memory retrieval is disabled. Set ENABLE_MEMORY_RETRIEVAL=true to validate retrieval.")
+            return 0
+        memory_contexts = build_memory_contexts(settings.database_path, settings.watchlist, {})
+        retrievals = flatten_retrievals(memory_contexts)
+        save_memory_retrievals(settings.database_path, retrievals)
+        print("Memory retrieval validation")
+        for symbol, context in memory_contexts.items():
+            print(f"{symbol}: {context.changed_since_previous}; retrievals={len(context.retrievals)}")
+        print(f"saved_memory_retrievals={len(retrievals)}")
+        return 0
+
     provider = _build_provider_with_fallback(settings)
     provider_health: list[ProviderHealthRecord] = []
     response_cache = ResponseCache(settings.database_path)
@@ -70,6 +84,11 @@ def run(dry_run: bool = False) -> int:
     filings_by_symbol = _fetch_sec_filings(settings)
     filing_events_by_symbol = extract_events_from_filings(filings_by_symbol)
     events_by_symbol = merge_events(news_events_by_symbol, filing_events_by_symbol)
+    memory_contexts = (
+        build_memory_contexts(settings.database_path, settings.watchlist, events_by_symbol)
+        if settings.enable_memory_retrieval
+        else {}
+    )
 
     logger.info("Fetching top gainers")
     top_gainers = _fetch_top_gainers(
@@ -99,6 +118,7 @@ def run(dry_run: bool = False) -> int:
             indicators_by_symbol.get(quote.symbol),
             news_by_symbol.get(quote.symbol, []),
             events_by_symbol.get(quote.symbol, []),
+            memory_contexts.get(quote.symbol),
         )
         for quote in quotes
     ]
@@ -131,6 +151,7 @@ def run(dry_run: bool = False) -> int:
         analyses=analyses,
         events_by_symbol=events_by_symbol,
         filings_by_symbol=filings_by_symbol,
+        memory_contexts=memory_contexts,
         recommendations_by_symbol=recommendations_by_symbol,
         earnings_by_symbol=earnings_by_symbol,
         timezone=settings.timezone,
@@ -147,6 +168,7 @@ def run(dry_run: bool = False) -> int:
         analyses=analyses,
         events_by_symbol=events_by_symbol,
         filings_by_symbol=filings_by_symbol,
+        memory_retrievals=flatten_retrievals(memory_contexts),
         provider_health=provider_health,
         recommendations_by_symbol=recommendations_by_symbol,
         earnings_by_symbol=earnings_by_symbol,
@@ -172,6 +194,7 @@ def run(dry_run: bool = False) -> int:
             analyses=analyses,
             events_by_symbol=events_by_symbol,
             filings_by_symbol=filings_by_symbol,
+            memory_contexts=memory_contexts,
             recommendations_by_symbol=recommendations_by_symbol,
             earnings_by_symbol=earnings_by_symbol,
             message=message,
@@ -494,6 +517,11 @@ def main() -> None:
         help="Print the message instead of sending it to WhatsApp.",
     )
     parser.add_argument(
+        "--skip-fetch",
+        action="store_true",
+        help="Validate memory retrieval from existing SQLite data without network calls.",
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=("DEBUG", "INFO", "WARNING", "ERROR"),
@@ -506,7 +534,7 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(message)s",
     )
     try:
-        raise SystemExit(run(dry_run=args.dry_run))
+        raise SystemExit(run(dry_run=args.dry_run, skip_fetch=args.skip_fetch))
     except Exception as exc:
         logger.error("Stock WhatsApp agent failed: %s", exc)
         raise SystemExit(1) from exc
