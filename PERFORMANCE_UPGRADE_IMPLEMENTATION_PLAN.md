@@ -658,6 +658,8 @@ Acceptance criteria:
 
 ## Phase 10: Alert Prioritization
 
+Status: Done
+
 Goal: send fewer, better alerts.
 
 Files likely touched:
@@ -694,6 +696,14 @@ Steps:
 4. Add "source confidence" boost for SEC/company filings.
 
 5. Format WhatsApp around alert priority.
+
+Completion notes:
+
+- Added `alert_prioritization.py` with `none`, `watch`, `important`, and `urgent` levels.
+- Alert score now combines price moves, volume signals, event impact, news cluster strength, SEC/company source confidence, cross-stock read-through, and memory novelty penalties.
+- Existing yes/no alert behavior is preserved, with yes only for `important` and `urgent` priorities.
+- Analyses persist alert level, score, and reason in SQLite.
+- WhatsApp `Agent Actions` are sorted by alert priority and include the reason an alert was or was not triggered.
 
 Acceptance criteria:
 

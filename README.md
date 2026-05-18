@@ -133,6 +133,8 @@ The agent also tracks persistent market narratives such as AI infrastructure, cl
 
 Cross-stock reasoning maps major source stocks to competitors, suppliers, peers, and likely beneficiaries. High-confidence read-through observations are stored in SQLite, can influence related stock reasoning, and are summarized in the WhatsApp message.
 
+Alert priority uses `none`, `watch`, `important`, and `urgent` levels. The score combines price movement, volume, event impact, clustered news, SEC/company source confidence, cross-stock read-through, and memory novelty so repeated low-value news is less likely to trigger alerts.
+
 SEC EDGAR ingestion is enabled by default for important filings such as `8-K`, `10-Q`, `10-K`, Form `4`, and `S-1`. Set a real contact in `.env`:
 
 ```bash

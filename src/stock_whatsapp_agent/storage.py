@@ -123,8 +123,11 @@ def save_run_to_sqlite(
         for analysis in analyses:
             connection.execute(
                 """
-                insert into analyses(run_id, symbol, stance, confidence, alert, rationale, action)
-                values (?, ?, ?, ?, ?, ?, ?)
+                insert into analyses(
+                    run_id, symbol, stance, confidence, alert, rationale, action,
+                    alert_level, alert_score, alert_reason
+                )
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     run_id,
@@ -134,6 +137,9 @@ def save_run_to_sqlite(
                     analysis.alert,
                     analysis.rationale,
                     analysis.action,
+                    analysis.alert_level,
+                    analysis.alert_score,
+                    analysis.alert_reason,
                 ),
             )
 
@@ -391,7 +397,10 @@ def _create_tables(connection: sqlite3.Connection) -> None:
             confidence integer,
             alert text,
             rationale text,
-            action text
+            action text,
+            alert_level text,
+            alert_score integer,
+            alert_reason text
         );
 
         create table if not exists provider_health (
@@ -496,6 +505,9 @@ def _create_tables(connection: sqlite3.Connection) -> None:
         """
     )
     _ensure_column(connection, "events", "cluster_id", "text")
+    _ensure_column(connection, "analyses", "alert_level", "text")
+    _ensure_column(connection, "analyses", "alert_score", "integer")
+    _ensure_column(connection, "analyses", "alert_reason", "text")
 
 
 def _ensure_column(connection: sqlite3.Connection, table_name: str, column_name: str, column_type: str) -> None:

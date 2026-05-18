@@ -166,10 +166,11 @@ def format_daily_message(
 
     if analyses:
         lines.extend(["", "Agent Actions"])
-        for analysis in analyses:
+        for analysis in _sort_analyses_by_alert_priority(analyses):
             lines.append(
                 f"{analysis.symbol}: {analysis.stance}, confidence {analysis.confidence}%, "
-                f"alert {analysis.alert} - {analysis.action}"
+                f"alert {analysis.alert} ({analysis.alert_level} {analysis.alert_score}/100) - "
+                f"{analysis.alert_reason}; {analysis.action}"
             )
 
     lines.extend(
@@ -222,6 +223,10 @@ def _number(value: float | None) -> str:
 
 def _latest_recommendation(items: list[RecommendationTrend]) -> RecommendationTrend | None:
     return items[0] if items else None
+
+
+def _sort_analyses_by_alert_priority(analyses: list[StockAnalysis]) -> list[StockAnalysis]:
+    return sorted(analyses, key=lambda analysis: analysis.alert_score, reverse=True)
 
 
 def _meaningful_narratives(narratives: list[NarrativeState] | None) -> list[NarrativeState]:

@@ -6,7 +6,10 @@ from .events import StockEvent
 from .indicators import TechnicalIndicators
 from .memory_retrieval import MemoryContext
 from .providers import NewsItem, StockQuote
+from .sec import SecFiling
+from .skills.alert_prioritization import prioritize_alert
 from .skills.cross_stock_reasoning import CrossStockObservation
+from .skills.news_clustering import EventCluster
 from .skills.narrative_tracking import NarrativeState
 
 
@@ -18,6 +21,9 @@ class StockAnalysis:
     alert: str
     rationale: str
     action: str
+    alert_level: str
+    alert_score: int
+    alert_reason: str
 
 
 def analyze_stock(
@@ -28,12 +34,16 @@ def analyze_stock(
     memory_context: MemoryContext | None = None,
     narratives: list[NarrativeState] | None = None,
     cross_stock_observations: list[CrossStockObservation] | None = None,
+    event_clusters: list[EventCluster] | None = None,
+    filings: list[SecFiling] | None = None,
 ) -> StockAnalysis:
     score = 0
     reasons = []
     events = events or []
     narratives = narratives or []
     cross_stock_observations = cross_stock_observations or []
+    event_clusters = event_clusters or []
+    filings = filings or []
 
     if quote.change_percent is not None:
         if quote.change_percent >= 3:
@@ -123,11 +133,20 @@ def analyze_stock(
     else:
         stance = "neutral watch"
 
-    max_event_impact = max((event.impact_score for event in events), default=0)
     confidence = min(90, max(35, 55 + abs(score) * 10 + min(len(news_items), 3) * 3 - confidence_penalty))
-    alert = "yes" if abs(score) >= 3 or abs(quote.change_percent or 0) >= 5 or max_event_impact >= 80 else "no"
+    alert_priority = prioritize_alert(
+        quote=quote,
+        indicators=indicators,
+        events=events,
+        event_clusters=event_clusters,
+        filings=filings,
+        memory_context=memory_context,
+        cross_stock_observations=cross_stock_observations,
+    )
+    alert = "yes" if alert_priority.level in {"important", "urgent"} else "no"
     action = _action_for(stance, alert)
-    rationale = "; ".join(reasons) if reasons else "insufficient fresh signals"
+    rationale_parts = reasons + [f"alert priority {alert_priority.level}: {alert_priority.reason}"]
+    rationale = "; ".join(rationale_parts) if rationale_parts else "insufficient fresh signals"
 
     return StockAnalysis(
         symbol=quote.symbol,
@@ -136,6 +155,9 @@ def analyze_stock(
         alert=alert,
         rationale=rationale,
         action=action,
+        alert_level=alert_priority.level,
+        alert_score=alert_priority.score,
+        alert_reason=alert_priority.reason,
     )
 
 

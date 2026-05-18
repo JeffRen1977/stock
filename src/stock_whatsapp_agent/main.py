@@ -134,6 +134,8 @@ def run(dry_run: bool = False, skip_fetch: bool = False) -> int:
             memory_contexts.get(quote.symbol),
             narratives_by_symbol_map.get(quote.symbol, []),
             cross_stock_observations_by_symbol.get(quote.symbol, []),
+            event_clusters_by_symbol.get(quote.symbol, []),
+            filings_by_symbol.get(quote.symbol, []),
         )
         for quote in quotes
     ]
