@@ -131,6 +131,8 @@ Similar events are clustered by symbol, event type, publish time, and headline k
 
 The agent also tracks persistent market narratives such as AI infrastructure, cloud capex, EV margin pressure, rate-cut expectations, chip export controls, and datacenter power demand. Narrative direction and strength are stored in SQLite and can influence the agent's stance.
 
+Cross-stock reasoning maps major source stocks to competitors, suppliers, peers, and likely beneficiaries. High-confidence read-through observations are stored in SQLite, can influence related stock reasoning, and are summarized in the WhatsApp message.
+
 SEC EDGAR ingestion is enabled by default for important filings such as `8-K`, `10-Q`, `10-K`, Form `4`, and `S-1`. Set a real contact in `.env`:
 
 ```bash

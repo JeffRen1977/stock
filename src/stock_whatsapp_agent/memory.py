@@ -12,6 +12,7 @@ from .memory_retrieval import MemoryContext
 from .providers import EarningsEvent, HistoricalBar, NewsItem, RecommendationTrend, StockQuote, TopGainer
 from .reasoning import StockAnalysis
 from .sec import SecFiling
+from .skills.cross_stock_reasoning import CrossStockObservation
 from .skills.news_clustering import EventCluster
 from .skills.narrative_tracking import NarrativeState
 
@@ -26,6 +27,7 @@ def save_daily_memory(
     events_by_symbol: dict[str, list[StockEvent]],
     event_clusters_by_symbol: dict[str, list[EventCluster]],
     narratives: list[NarrativeState],
+    cross_stock_observations: list[CrossStockObservation],
     filings_by_symbol: dict[str, list[SecFiling]],
     memory_contexts: dict[str, MemoryContext],
     recommendations_by_symbol: dict[str, list[RecommendationTrend]] | None,
@@ -64,6 +66,10 @@ def save_daily_memory(
             for symbol, clusters in event_clusters_by_symbol.items()
         },
         "narratives": [asdict(narrative) for narrative in narratives],
+        "cross_stock_observations": [
+            asdict(observation)
+            for observation in cross_stock_observations
+        ],
         "filings_by_symbol": {
             symbol: [asdict(filing) for filing in filings]
             for symbol, filings in filings_by_symbol.items()

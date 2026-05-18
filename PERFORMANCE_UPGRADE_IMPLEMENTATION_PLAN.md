@@ -596,6 +596,8 @@ Acceptance criteria:
 
 ## Phase 9: Cross-Stock Reasoning Skill
 
+Status: Done
+
 Goal: infer second-order effects between stocks.
 
 Files likely touched:
@@ -639,6 +641,14 @@ Steps:
    ```
 
 5. Show only high-confidence observations in WhatsApp.
+
+Completion notes:
+
+- Added `cross_stock_reasoning.py` with the initial relationship map and relationship types.
+- Generates observations from high-impact source events and large source price moves.
+- Persists deterministic cross-stock observations in SQLite and skips already stored observations.
+- High-confidence read-throughs can influence per-stock reasoning.
+- WhatsApp output includes a `Cross-Stock Read-Through` section for high-confidence observations only.
 
 Acceptance criteria:
 

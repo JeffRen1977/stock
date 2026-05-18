@@ -6,6 +6,7 @@ from .events import StockEvent
 from .indicators import TechnicalIndicators
 from .memory_retrieval import MemoryContext
 from .providers import NewsItem, StockQuote
+from .skills.cross_stock_reasoning import CrossStockObservation
 from .skills.narrative_tracking import NarrativeState
 
 
@@ -26,11 +27,13 @@ def analyze_stock(
     events: list[StockEvent] | None = None,
     memory_context: MemoryContext | None = None,
     narratives: list[NarrativeState] | None = None,
+    cross_stock_observations: list[CrossStockObservation] | None = None,
 ) -> StockAnalysis:
     score = 0
     reasons = []
     events = events or []
     narratives = narratives or []
+    cross_stock_observations = cross_stock_observations or []
 
     if quote.change_percent is not None:
         if quote.change_percent >= 3:
@@ -88,6 +91,16 @@ def analyze_stock(
             reasons.append(f"{narrative.name} narrative is weakening")
         elif narrative.direction == "mixed":
             reasons.append(f"{narrative.name} narrative is mixed")
+
+    for observation in cross_stock_observations:
+        if observation.confidence < 75:
+            continue
+        if observation.direction == "positive":
+            score += 1
+            reasons.append(f"positive {observation.source_symbol} read-through")
+        elif observation.direction == "negative":
+            score -= 1
+            reasons.append(f"negative {observation.source_symbol} read-through")
 
     if memory_context:
         if memory_context.prior_stance:

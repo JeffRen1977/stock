@@ -10,6 +10,7 @@ from .memory_retrieval import MemoryContext
 from .providers import EarningsEvent, NewsItem, RecommendationTrend, StockQuote, TopGainer
 from .reasoning import StockAnalysis
 from .sec import SecFiling
+from .skills.cross_stock_reasoning import CrossStockObservation
 from .skills.news_clustering import EventCluster
 from .skills.narrative_tracking import NarrativeState
 
@@ -23,6 +24,7 @@ def format_daily_message(
     events_by_symbol: dict[str, list[StockEvent]] | None,
     event_clusters_by_symbol: dict[str, list[EventCluster]] | None,
     narratives: list[NarrativeState] | None,
+    cross_stock_observations: list[CrossStockObservation] | None,
     filings_by_symbol: dict[str, list[SecFiling]] | None,
     memory_contexts: dict[str, MemoryContext] | None,
     recommendations_by_symbol: dict[str, list[RecommendationTrend]] | None,
@@ -118,6 +120,16 @@ def format_daily_message(
             lines.append(
                 f"{narrative.name}: {narrative.direction}, strength {narrative.strength}/10 "
                 f"({symbols})"
+            )
+
+    high_confidence_observations = _high_confidence_observations(cross_stock_observations)
+    if high_confidence_observations:
+        lines.extend(["", "Cross-Stock Read-Through"])
+        for observation in high_confidence_observations[:3]:
+            lines.append(
+                f"{observation.source_symbol} -> {observation.related_symbol} "
+                f"({observation.relationship}, {observation.confidence}%): "
+                f"{_shorten(observation.reasoning, 160)}"
             )
 
     if memory_contexts:
@@ -219,6 +231,18 @@ def _meaningful_narratives(narratives: list[NarrativeState] | None) -> list[Narr
         narrative
         for narrative in sorted(narratives, key=lambda item: item.strength, reverse=True)
         if narrative.strength >= 2 or narrative.direction in {"strengthening", "weakening", "mixed"}
+    ]
+
+
+def _high_confidence_observations(
+    observations: list[CrossStockObservation] | None,
+) -> list[CrossStockObservation]:
+    if not observations:
+        return []
+    return [
+        observation
+        for observation in sorted(observations, key=lambda item: item.confidence, reverse=True)
+        if observation.confidence >= 75
     ]
 
 

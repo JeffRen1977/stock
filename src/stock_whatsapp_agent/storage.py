@@ -14,6 +14,7 @@ from .memory_retrieval import MemoryRetrieval
 from .providers import EarningsEvent, HistoricalBar, NewsItem, RecommendationTrend, StockQuote, TopGainer
 from .reasoning import StockAnalysis
 from .sec import SecFiling
+from .skills.cross_stock_reasoning import CrossStockObservation
 from .skills.news_clustering import EventCluster
 from .skills.narrative_tracking import NarrativeState
 
@@ -30,6 +31,7 @@ def save_run_to_sqlite(
     events_by_symbol: dict[str, list[StockEvent]],
     event_clusters: list[EventCluster],
     narratives: list[NarrativeState],
+    cross_stock_observations: list[CrossStockObservation],
     filings_by_symbol: dict[str, list[SecFiling]],
     memory_retrievals: list[MemoryRetrieval],
     provider_health: list[ProviderHealthRecord],
@@ -208,6 +210,27 @@ def save_run_to_sqlite(
                     narrative.supporting_event_ids_json,
                     narrative.contradicting_event_ids_json,
                     narrative.updated_at,
+                ),
+            )
+
+        for observation in cross_stock_observations:
+            connection.execute(
+                """
+                insert or ignore into cross_stock_observations(
+                    run_id, observation_id, source_symbol, related_symbol, relationship,
+                    reasoning, confidence, direction
+                )
+                values (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    observation.observation_id,
+                    observation.source_symbol,
+                    observation.related_symbol,
+                    observation.relationship,
+                    observation.reasoning,
+                    observation.confidence,
+                    observation.direction,
                 ),
             )
 
@@ -421,6 +444,17 @@ def _create_tables(connection: sqlite3.Connection) -> None:
             supporting_event_ids text,
             contradicting_event_ids text,
             updated_at text
+        );
+
+        create table if not exists cross_stock_observations (
+            run_id integer,
+            observation_id text unique,
+            source_symbol text,
+            related_symbol text,
+            relationship text,
+            reasoning text,
+            confidence integer,
+            direction text
         );
 
         create table if not exists filings (
