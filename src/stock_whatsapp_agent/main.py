@@ -15,7 +15,7 @@ from .cache import (
     payload_to_dataclass_list,
 )
 from .config import Settings, redact_recipients
-from .dashboard import render_chart_widget
+from .dashboard import render_chart_widget, render_dashboard
 from .events import extract_events_from_filings, extract_events_from_news, merge_events
 from .formatter import format_daily_message
 from .health import ProviderHealthRecord, make_provider_health_record
@@ -235,6 +235,8 @@ def run(dry_run: bool = False, skip_fetch: bool = False) -> int:
         )
         if chart_path:
             logger.info("Saved chart widget to %s", chart_path)
+        dashboard_path = render_dashboard(settings.database_path, settings.dashboard_dir, chart_path)
+        logger.info("Saved dashboard to %s", dashboard_path)
 
     if settings.save_daily_memory:
         memory_path = save_daily_memory(

@@ -766,6 +766,8 @@ Acceptance criteria:
 
 ## Phase 12: Dashboard Upgrade
 
+Status: Done
+
 Goal: make local inspection easier.
 
 Files likely touched:
@@ -789,6 +791,14 @@ Steps:
 2. Link dashboard to latest SQLite data.
 
 3. Keep dashboard generation optional.
+
+Completion notes:
+
+- Expanded `dashboard.py` to generate a static `dashboard/index.html` from the latest SQLite run.
+- Dashboard includes watchlist, alert priority, event cluster, narrative, and provider health tables.
+- Existing chart widget remains linked when enough history is available.
+- Missing sections and stale or failed provider calls are clearly marked.
+- Dashboard generation remains controlled by `GENERATE_CHART_WIDGET`.
 
 Acceptance criteria:
 

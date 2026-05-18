@@ -161,6 +161,7 @@ Each run saves the generated message and raw stock data:
 memory/daily_stock/YYYY-MM-DD/stock_update.md
 memory/daily_stock/YYYY-MM-DD/stock_update.json
 data/stock_agent.sqlite3
+dashboard/index.html
 dashboard/nvda_chart.html
 ```
 
@@ -170,7 +171,7 @@ Disable this only if needed:
 SAVE_DAILY_MEMORY=false
 ```
 
-The SQLite database stores quotes, news, top gainers, price history, technical indicators, and agent analyses. The chart widget is a standalone HTML file that can be opened in a browser.
+The SQLite database stores quotes, news, top gainers, price history, technical indicators, agent analyses, event clusters, narratives, and provider health. The dashboard is a standalone HTML file that can be opened in a browser without running a server.
 
 ## Scheduling
 

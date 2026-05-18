@@ -1,8 +1,80 @@
 from __future__ import annotations
 
+import json
+import sqlite3
+from html import escape
 from pathlib import Path
 
 from .providers import HistoricalBar
+
+
+def render_dashboard(database_path: Path, dashboard_dir: Path, chart_path: Path | None = None) -> Path:
+    dashboard_dir.mkdir(parents=True, exist_ok=True)
+    path = dashboard_dir / "index.html"
+    data = _load_latest_dashboard_data(database_path)
+
+    if data["run"] is None:
+        body = """
+      <section class="card">
+        <h2>No Run Data</h2>
+        <p class="missing">No SQLite run data was found yet. Run the agent once to populate the dashboard.</p>
+      </section>
+"""
+    else:
+        chart_link = _chart_link(chart_path, dashboard_dir)
+        body = f"""
+      <section class="grid">
+        <div class="card">
+          <h2>Latest Run</h2>
+          <p class="muted">Generated at {escape(data["run"]["generated_at"])}</p>
+          {chart_link}
+        </div>
+        <div class="card">
+          <h2>Data Health</h2>
+          {_health_summary(data)}
+        </div>
+      </section>
+      {_table("Watchlist", data["quotes"], ("symbol", "price", "change_percent", "volume"))}
+      {_table("Alerts", data["analyses"], ("symbol", "alert_level", "alert_score", "alert", "stance", "alert_reason"))}
+      {_table("Event Clusters", data["event_clusters"], ("cluster_id", "event_type", "source_count", "confidence", "symbols"))}
+      {_table("Narratives", data["narratives"], ("name", "direction", "strength", "related_symbols", "updated_at"))}
+      {_table("Provider Health", data["provider_health"], ("provider_name", "operation", "success", "stale", "latency_ms", "error"))}
+"""
+
+    path.write_text(
+        f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stock Agent Dashboard</title>
+  <style>
+    body {{ font-family: Arial, sans-serif; margin: 24px; color: #111827; background: #f9fafb; }}
+    h1 {{ margin-bottom: 4px; }}
+    h2 {{ margin: 0 0 12px; }}
+    table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
+    th, td {{ border-bottom: 1px solid #e5e7eb; padding: 8px; text-align: left; vertical-align: top; }}
+    th {{ background: #f3f4f6; color: #374151; }}
+    .card {{ background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 18px; margin: 16px 0; box-shadow: 0 8px 24px #0001; }}
+    .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }}
+    .muted {{ color: #6b7280; }}
+    .missing, .stale, .bad {{ color: #b91c1c; font-weight: 600; }}
+    .ok {{ color: #047857; font-weight: 600; }}
+    .pill {{ display: inline-block; padding: 2px 8px; border-radius: 999px; background: #e0f2fe; color: #075985; }}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Stock Agent Dashboard</h1>
+    <p class="muted">Static local dashboard. No external server required.</p>
+{body}
+  </main>
+</body>
+</html>
+""",
+        encoding="utf-8",
+    )
+    return path
 
 
 def render_chart_widget(symbol: str, bars: list[HistoricalBar], dashboard_dir: Path) -> Path | None:
@@ -41,6 +113,154 @@ def render_chart_widget(symbol: str, bars: list[HistoricalBar], dashboard_dir: P
         encoding="utf-8",
     )
     return path
+
+
+def _load_latest_dashboard_data(database_path: Path) -> dict:
+    if not database_path.exists():
+        return {"run": None}
+
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        run = connection.execute("select id, generated_at from runs order by id desc limit 1").fetchone()
+        if run is None:
+            return {"run": None}
+        run_id = int(run["id"])
+        return {
+            "run": dict(run),
+            "quotes": _fetch_rows(
+                connection,
+                "select symbol, price, change_percent, volume from quotes where run_id = ? order by symbol",
+                run_id,
+            ),
+            "analyses": _fetch_rows(
+                connection,
+                """
+                select symbol, alert_level, alert_score, alert, stance, alert_reason
+                from analyses
+                where run_id = ?
+                order by coalesce(alert_score, 0) desc, symbol
+                """,
+                run_id,
+            ),
+            "event_clusters": _event_cluster_rows(connection, run_id),
+            "narratives": _narrative_rows(connection),
+            "provider_health": _fetch_rows(
+                connection,
+                """
+                select provider_name, operation, success, stale, latency_ms, error
+                from provider_health
+                where run_id = ?
+                order by success asc, stale desc, operation
+                """,
+                run_id,
+            ),
+        }
+
+
+def _fetch_rows(connection: sqlite3.Connection, query: str, run_id: int) -> list[dict]:
+    return [dict(row) for row in connection.execute(query, (run_id,)).fetchall()]
+
+
+def _event_cluster_rows(connection: sqlite3.Connection, run_id: int) -> list[dict]:
+    rows = _fetch_rows(
+        connection,
+        """
+        select cluster_id, event_type, source_count, confidence, symbols_json
+        from event_clusters
+        where run_id = ?
+        order by confidence desc, source_count desc
+        """,
+        run_id,
+    )
+    for row in rows:
+        row["symbols"] = ", ".join(_json_list(row.pop("symbols_json", "")))
+    return rows
+
+
+def _narrative_rows(connection: sqlite3.Connection) -> list[dict]:
+    rows = [dict(row) for row in connection.execute(
+        """
+        select name, direction, strength, related_symbols, updated_at
+        from narratives
+        order by strength desc, name
+        """
+    ).fetchall()]
+    for row in rows:
+        row["related_symbols"] = ", ".join(_json_list(row.get("related_symbols", "")))
+    return rows
+
+
+def _table(title: str, rows: list[dict], columns: tuple[str, ...]) -> str:
+    if not rows:
+        return f"""
+      <section class="card">
+        <h2>{escape(title)}</h2>
+        <p class="missing">No data available.</p>
+      </section>
+"""
+    headers = "".join(f"<th>{escape(column.replace('_', ' ').title())}</th>" for column in columns)
+    body = "\n".join(
+        "<tr>" + "".join(f"<td>{_format_cell(row.get(column))}</td>" for column in columns) + "</tr>"
+        for row in rows
+    )
+    return f"""
+      <section class="card">
+        <h2>{escape(title)}</h2>
+        <table>
+          <thead><tr>{headers}</tr></thead>
+          <tbody>
+            {body}
+          </tbody>
+        </table>
+      </section>
+"""
+
+
+def _health_summary(data: dict) -> str:
+    health_rows = data.get("provider_health") or []
+    stale_count = sum(1 for row in health_rows if row.get("stale"))
+    failure_count = sum(1 for row in health_rows if not row.get("success"))
+    missing_sections = [
+        name
+        for name in ("quotes", "analyses", "event_clusters", "provider_health")
+        if not data.get(name)
+    ]
+    parts = [
+        f"<p><span class='pill'>{len(health_rows)}</span> provider checks</p>",
+        f"<p class='{'stale' if stale_count else 'ok'}'>{stale_count} stale provider response(s)</p>",
+        f"<p class='{'bad' if failure_count else 'ok'}'>{failure_count} failed provider call(s)</p>",
+    ]
+    if missing_sections:
+        parts.append(f"<p class='missing'>Missing data: {escape(', '.join(missing_sections))}</p>")
+    return "\n".join(parts)
+
+
+def _chart_link(chart_path: Path | None, dashboard_dir: Path) -> str:
+    if chart_path is None:
+        return "<p class='missing'>Chart widget unavailable or missing enough history.</p>"
+    try:
+        href = chart_path.relative_to(dashboard_dir)
+    except ValueError:
+        href = chart_path
+    return f"<p><a href='{escape(str(href))}'>Open chart widget</a></p>"
+
+
+def _format_cell(value: object) -> str:
+    if value is None or value == "":
+        return "<span class='missing'>missing</span>"
+    if isinstance(value, float):
+        return escape(f"{value:,.2f}")
+    return escape(str(value))
+
+
+def _json_list(value: str) -> list[str]:
+    try:
+        payload = json.loads(value or "[]")
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(payload, list):
+        return []
+    return [str(item) for item in payload]
 
 
 def _line_chart_svg(points: list[tuple[str, float]]) -> str:
