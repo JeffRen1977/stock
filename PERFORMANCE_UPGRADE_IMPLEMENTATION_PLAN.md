@@ -531,6 +531,8 @@ Acceptance criteria:
 
 ## Phase 8: Narrative Tracking Skill
 
+Status: Done
+
 Goal: identify and track multi-day market stories.
 
 Files likely touched:
@@ -577,6 +579,14 @@ Steps:
    ```
 
 5. Add one narrative line to WhatsApp when meaningful.
+
+Completion notes:
+
+- Added `narrative_tracking.py` with initial AI infrastructure, cloud capex, EV margin, rates, chip export, and datacenter power narratives.
+- Events map to narratives through configured keywords and carry related symbols into the narrative state.
+- Added persisted `narratives` state with direction, strength, related symbols, supporting events, contradicting events, and updated time.
+- Strengthening, weakening, and mixed narratives can influence per-stock reasoning.
+- WhatsApp output includes a `Market Narratives` section when narrative movement is meaningful.
 
 Acceptance criteria:
 

@@ -129,6 +129,8 @@ News is also converted into structured events when possible. Events include type
 
 Similar events are clustered by symbol, event type, publish time, and headline keywords. When clusters are found, the WhatsApp preview uses concise cluster summaries with source counts instead of listing every related headline.
 
+The agent also tracks persistent market narratives such as AI infrastructure, cloud capex, EV margin pressure, rate-cut expectations, chip export controls, and datacenter power demand. Narrative direction and strength are stored in SQLite and can influence the agent's stance.
+
 SEC EDGAR ingestion is enabled by default for important filings such as `8-K`, `10-Q`, `10-K`, Form `4`, and `S-1`. Set a real contact in `.env`:
 
 ```bash

@@ -15,6 +15,7 @@ from .providers import EarningsEvent, HistoricalBar, NewsItem, RecommendationTre
 from .reasoning import StockAnalysis
 from .sec import SecFiling
 from .skills.news_clustering import EventCluster
+from .skills.narrative_tracking import NarrativeState
 
 
 def save_run_to_sqlite(
@@ -28,6 +29,7 @@ def save_run_to_sqlite(
     analyses: list[StockAnalysis],
     events_by_symbol: dict[str, list[StockEvent]],
     event_clusters: list[EventCluster],
+    narratives: list[NarrativeState],
     filings_by_symbol: dict[str, list[SecFiling]],
     memory_retrievals: list[MemoryRetrieval],
     provider_health: list[ProviderHealthRecord],
@@ -181,6 +183,31 @@ def save_run_to_sqlite(
                     cluster.summary,
                     cluster.confidence,
                     cluster.event_hashes_json,
+                ),
+            )
+
+        for narrative in narratives:
+            connection.execute(
+                "delete from narratives where narrative_id = ?",
+                (narrative.narrative_id,),
+            )
+            connection.execute(
+                """
+                insert into narratives(
+                    narrative_id, name, direction, strength, related_symbols,
+                    supporting_event_ids, contradicting_event_ids, updated_at
+                )
+                values (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    narrative.narrative_id,
+                    narrative.name,
+                    narrative.direction,
+                    narrative.strength,
+                    narrative.related_symbols_json,
+                    narrative.supporting_event_ids_json,
+                    narrative.contradicting_event_ids_json,
+                    narrative.updated_at,
                 ),
             )
 
@@ -383,6 +410,17 @@ def _create_tables(connection: sqlite3.Connection) -> None:
             summary text,
             confidence integer,
             event_hashes_json text
+        );
+
+        create table if not exists narratives (
+            narrative_id text primary key,
+            name text,
+            direction text,
+            strength integer,
+            related_symbols text,
+            supporting_event_ids text,
+            contradicting_event_ids text,
+            updated_at text
         );
 
         create table if not exists filings (

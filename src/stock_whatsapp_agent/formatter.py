@@ -11,6 +11,7 @@ from .providers import EarningsEvent, NewsItem, RecommendationTrend, StockQuote,
 from .reasoning import StockAnalysis
 from .sec import SecFiling
 from .skills.news_clustering import EventCluster
+from .skills.narrative_tracking import NarrativeState
 
 
 def format_daily_message(
@@ -21,6 +22,7 @@ def format_daily_message(
     analyses: list[StockAnalysis] | None,
     events_by_symbol: dict[str, list[StockEvent]] | None,
     event_clusters_by_symbol: dict[str, list[EventCluster]] | None,
+    narratives: list[NarrativeState] | None,
     filings_by_symbol: dict[str, list[SecFiling]] | None,
     memory_contexts: dict[str, MemoryContext] | None,
     recommendations_by_symbol: dict[str, list[RecommendationTrend]] | None,
@@ -107,6 +109,16 @@ def format_daily_message(
             filings = (filings_by_symbol or {}).get(quote.symbol, [])
             for filing in filings[:2]:
                 lines.append(f"{quote.symbol}: {filing.form_type} filed {filing.filing_date} - {filing.title}")
+
+    meaningful_narratives = _meaningful_narratives(narratives)
+    if meaningful_narratives:
+        lines.extend(["", "Market Narratives"])
+        for narrative in meaningful_narratives[:3]:
+            symbols = ", ".join(narrative.related_symbols[:4]) or "market"
+            lines.append(
+                f"{narrative.name}: {narrative.direction}, strength {narrative.strength}/10 "
+                f"({symbols})"
+            )
 
     if memory_contexts:
         lines.extend(["", "Memory Comparison"])
@@ -198,6 +210,16 @@ def _number(value: float | None) -> str:
 
 def _latest_recommendation(items: list[RecommendationTrend]) -> RecommendationTrend | None:
     return items[0] if items else None
+
+
+def _meaningful_narratives(narratives: list[NarrativeState] | None) -> list[NarrativeState]:
+    if not narratives:
+        return []
+    return [
+        narrative
+        for narrative in sorted(narratives, key=lambda item: item.strength, reverse=True)
+        if narrative.strength >= 2 or narrative.direction in {"strengthening", "weakening", "mixed"}
+    ]
 
 
 def _has_any_items(values_by_symbol: dict[str, list[Any]] | None) -> bool:

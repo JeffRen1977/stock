@@ -6,6 +6,7 @@ from .events import StockEvent
 from .indicators import TechnicalIndicators
 from .memory_retrieval import MemoryContext
 from .providers import NewsItem, StockQuote
+from .skills.narrative_tracking import NarrativeState
 
 
 @dataclass(frozen=True)
@@ -24,10 +25,12 @@ def analyze_stock(
     news_items: list[NewsItem],
     events: list[StockEvent] | None = None,
     memory_context: MemoryContext | None = None,
+    narratives: list[NarrativeState] | None = None,
 ) -> StockAnalysis:
     score = 0
     reasons = []
     events = events or []
+    narratives = narratives or []
 
     if quote.change_percent is not None:
         if quote.change_percent >= 3:
@@ -73,6 +76,18 @@ def analyze_stock(
 
     if events:
         reasons.append(f"{len(events)} structured event(s) extracted")
+
+    for narrative in narratives:
+        if narrative.strength < 2 and narrative.direction == "stable":
+            continue
+        if narrative.direction == "strengthening":
+            score += 1
+            reasons.append(f"{narrative.name} narrative is strengthening")
+        elif narrative.direction == "weakening":
+            score -= 1
+            reasons.append(f"{narrative.name} narrative is weakening")
+        elif narrative.direction == "mixed":
+            reasons.append(f"{narrative.name} narrative is mixed")
 
     if memory_context:
         if memory_context.prior_stance:
