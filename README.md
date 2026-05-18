@@ -9,7 +9,7 @@ It currently supports:
 - Daily top gainers when using Yahoo Finance.
 - Simple technical indicators: SMA, RSI, and 5-day momentum.
 - Heuristic reasoning for stance, confidence, alerts, and actions.
-- WhatsApp delivery to multiple recipients through OpenClaw.
+- WhatsApp delivery to multiple recipients through OpenClaw (`openclaw message send`—one briefing per successful run).
 - Daily memory saved under `memory/daily_stock/YYYY-MM-DD/`.
 - Structured run history in local SQLite.
 - Static chart widget, defaulting to NVDA.
@@ -39,12 +39,17 @@ Example recipients:
 WHATSAPP_TO=+1xxxxxxxxxx,+1yyyyyyyyyy
 ```
 
-The stock agent uses the same OpenClaw WhatsApp channel style as the WeChat agent. Make sure WhatsApp is linked:
+The stock agent sends WhatsApp with `openclaw message send --channel whatsapp` (see `whatsapp.py`). The **OpenClaw Gateway must be running** and WhatsApp must be linked on that machine:
 
 ```bash
-openclaw gateway start
+openclaw health
+openclaw channels status --probe
+```
+
+If WhatsApp is not linked yet:
+
+```bash
 openclaw channels login --channel whatsapp --verbose
-openclaw channels status
 ```
 
 ## Run
@@ -148,7 +153,7 @@ OPENCLAW_TIMEOUT_SECONDS=300
 
 Set `ENABLE_LLM_ANALYSIS=false` to disable the LLM writing layer.
 
-Use a dedicated OpenClaw agent such as `stock` with workspace `/home/renjeff/Documents/projects/Stock`. Avoid reusing the WeChat `main` agent because it has article-writing instructions.
+Use a dedicated OpenClaw agent such as `stock` with workspace pointed at this repository. Avoid reusing the WeChat `main` agent because it has article-writing instructions.
 
 SEC EDGAR ingestion is enabled by default for important filings such as `8-K`, `10-Q`, `10-K`, Form `4`, and `S-1`. Set a real contact in `.env`:
 
@@ -188,15 +193,31 @@ The SQLite database stores quotes, news, top gainers, price history, technical i
 
 ## Scheduling
 
-For a local Linux machine, add a cron job after the US market closes.
+This project includes `scripts/run_stock_whatsapp_agent.sh`, which fixes `PROJECT_DIR`, `PYTHONPATH`, and PATH (including NVM Node for `openclaw`) and writes logs under `logs/`. Crontab uses the **machine’s local timezone** unless you set `CRON_TZ`.
 
-Example for 1:30 PM Pacific time, Monday through Friday:
+Example: once per calendar day at 05:00 **local**:
 
 ```cron
-30 13 * * 1-5 cd /home/renjeff/Documents/projects/Stock && .venv/bin/stock-whatsapp-agent >> agent.log 2>&1
+0 5 * * * /home/renjeff/Documents/projects/Stock/scripts/run_stock_whatsapp_agent.sh >> /home/renjeff/Documents/projects/Stock/logs/stock-agent-cron.log 2>&1
 ```
 
-Make sure the machine timezone matches the schedule you expect.
+Alternatively, Mondays–Fridays after the US cash close:
+
+```cron
+30 13 * * 1-5 /path/to/your/checkout/scripts/run_stock_whatsapp_agent.sh >> /path/to/your/checkout/logs/stock-agent-cron.log 2>&1
+```
+
+If your checkout lives somewhere else, edit `PROJECT_DIR` at the top of `scripts/run_stock_whatsapp_agent.sh`.
+
+If `openclaw` is not discoverable inside cron’s minimal `PATH`, the script adds a common NVM Node path—adjust if your shell profile installs Node elsewhere.
+
+Ensure the **OpenClaw Gateway** stays up on boot (typically `systemctl --user enable --now openclaw-gateway.service` on Linux); otherwise `openclaw message send` during the cron run will fail.
+
+### Single daily briefing to WhatsApp
+
+The **authoritative** outbound Stock update is **`python3 -m stock_whatsapp_agent.main`** (typically started by **`scripts/run_stock_whatsapp_agent.sh`** from cron). Each address in **`WHATSAPP_TO`** receives **one message per successful run**.
+
+If you use **`openclaw cron`** elsewhere (for example separate OpenClaw agents at fixed times), keep **announce / WhatsApp delivery disabled** on any Stock **workspace-only** cron job so it does not send a **second** Stock summary alongside this pipeline—the run from this repo is the one intended for WhatsApp users.
 
 ## Security
 
