@@ -474,6 +474,8 @@ Acceptance criteria:
 
 ## Phase 7: News Clustering Skill
 
+Status: Done
+
 Goal: cluster headlines about the same story.
 
 Files likely touched:
@@ -512,6 +514,14 @@ Steps:
 4. Attach events to clusters.
 
 5. Format WhatsApp with cluster summaries instead of every headline.
+
+Completion notes:
+
+- Added a local `skills` package with rule-based news/event clustering.
+- Clustering groups events by symbol, event type, keyword similarity, and close publish time.
+- Added cluster IDs to events and persists cluster summaries in `event_clusters`.
+- WhatsApp output shows concise `News Clusters` with source count and confidence when clusters exist.
+- Daily memory JSON includes event clusters.
 
 Acceptance criteria:
 

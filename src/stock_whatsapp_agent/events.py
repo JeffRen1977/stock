@@ -21,6 +21,7 @@ class StockEvent:
     impact_score: int
     related_symbols: tuple[str, ...]
     dedupe_hash: str
+    cluster_id: str | None = None
 
     @property
     def related_symbols_json(self) -> str:

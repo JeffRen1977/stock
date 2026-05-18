@@ -12,6 +12,7 @@ from .memory_retrieval import MemoryContext
 from .providers import EarningsEvent, HistoricalBar, NewsItem, RecommendationTrend, StockQuote, TopGainer
 from .reasoning import StockAnalysis
 from .sec import SecFiling
+from .skills.news_clustering import EventCluster
 
 
 def save_daily_memory(
@@ -22,6 +23,7 @@ def save_daily_memory(
     indicators_by_symbol: dict[str, TechnicalIndicators],
     analyses: list[StockAnalysis],
     events_by_symbol: dict[str, list[StockEvent]],
+    event_clusters_by_symbol: dict[str, list[EventCluster]],
     filings_by_symbol: dict[str, list[SecFiling]],
     memory_contexts: dict[str, MemoryContext],
     recommendations_by_symbol: dict[str, list[RecommendationTrend]] | None,
@@ -54,6 +56,10 @@ def save_daily_memory(
         "events_by_symbol": {
             symbol: [asdict(event) for event in events]
             for symbol, events in events_by_symbol.items()
+        },
+        "event_clusters_by_symbol": {
+            symbol: [asdict(cluster) for cluster in clusters]
+            for symbol, clusters in event_clusters_by_symbol.items()
         },
         "filings_by_symbol": {
             symbol: [asdict(filing) for filing in filings]

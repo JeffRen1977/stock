@@ -10,6 +10,7 @@ from .memory_retrieval import MemoryContext
 from .providers import EarningsEvent, NewsItem, RecommendationTrend, StockQuote, TopGainer
 from .reasoning import StockAnalysis
 from .sec import SecFiling
+from .skills.news_clustering import EventCluster
 
 
 def format_daily_message(
@@ -19,6 +20,7 @@ def format_daily_message(
     indicators_by_symbol: dict[str, TechnicalIndicators] | None,
     analyses: list[StockAnalysis] | None,
     events_by_symbol: dict[str, list[StockEvent]] | None,
+    event_clusters_by_symbol: dict[str, list[EventCluster]] | None,
     filings_by_symbol: dict[str, list[SecFiling]] | None,
     memory_contexts: dict[str, MemoryContext] | None,
     recommendations_by_symbol: dict[str, list[RecommendationTrend]] | None,
@@ -49,22 +51,36 @@ def format_daily_message(
                 f"5D {_signed_percent(indicator.momentum_5d_percent)}"
             )
 
-    lines.extend(["", "Latest News By Stock"])
-    for quote in quotes:
-        lines.append(quote.symbol)
-        items = news_by_symbol.get(quote.symbol, [])
-        if not items:
-            lines.append("- No major recent news found.")
+    if _has_any_items(event_clusters_by_symbol):
+        lines.extend(["", "News Clusters"])
+        for quote in quotes:
+            clusters = (event_clusters_by_symbol or {}).get(quote.symbol, [])
+            if not clusters:
+                continue
+            lines.append(quote.symbol)
+            for cluster in clusters[:3]:
+                lines.append(
+                    f"- {cluster.event_type}, {cluster.source_count} source(s), "
+                    f"confidence {cluster.confidence}%: {_shorten(cluster.summary, 180)}"
+                )
             lines.append("")
-            continue
+    else:
+        lines.extend(["", "Latest News By Stock"])
+        for quote in quotes:
+            lines.append(quote.symbol)
+            items = news_by_symbol.get(quote.symbol, [])
+            if not items:
+                lines.append("- No major recent news found.")
+                lines.append("")
+                continue
 
-        for item in items:
-            summary = _shorten(item.summary or item.headline, 180)
-            line = f"- {item.source}, {item.published_at}: {summary}"
-            if item.url:
-                line = f"{line} {item.url}"
-            lines.append(line)
-        lines.append("")
+            for item in items:
+                summary = _shorten(item.summary or item.headline, 180)
+                line = f"- {item.source}, {item.published_at}: {summary}"
+                if item.url:
+                    line = f"{line} {item.url}"
+                lines.append(line)
+            lines.append("")
 
     lines.append("Top Gainers")
     if top_gainers:
@@ -75,7 +91,7 @@ def format_daily_message(
     else:
         lines.append("Top gainers were not available from the configured provider.")
 
-    if _has_any_items(events_by_symbol):
+    if _has_any_items(events_by_symbol) and not _has_any_items(event_clusters_by_symbol):
         lines.extend(["", "Important Events"])
         for quote in quotes:
             events = (events_by_symbol or {}).get(quote.symbol, [])

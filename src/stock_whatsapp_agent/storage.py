@@ -14,6 +14,7 @@ from .memory_retrieval import MemoryRetrieval
 from .providers import EarningsEvent, HistoricalBar, NewsItem, RecommendationTrend, StockQuote, TopGainer
 from .reasoning import StockAnalysis
 from .sec import SecFiling
+from .skills.news_clustering import EventCluster
 
 
 def save_run_to_sqlite(
@@ -26,6 +27,7 @@ def save_run_to_sqlite(
     indicators_by_symbol: dict[str, TechnicalIndicators],
     analyses: list[StockAnalysis],
     events_by_symbol: dict[str, list[StockEvent]],
+    event_clusters: list[EventCluster],
     filings_by_symbol: dict[str, list[SecFiling]],
     memory_retrievals: list[MemoryRetrieval],
     provider_health: list[ProviderHealthRecord],
@@ -137,9 +139,9 @@ def save_run_to_sqlite(
                     """
                     insert into events(
                         run_id, symbol, event_type, headline, summary, source, published_at,
-                        sentiment, confidence, impact_score, related_symbols_json, dedupe_hash
+                        sentiment, confidence, impact_score, related_symbols_json, dedupe_hash, cluster_id
                     )
-                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         run_id,
@@ -154,8 +156,33 @@ def save_run_to_sqlite(
                         event.impact_score,
                         event.related_symbols_json,
                         event.dedupe_hash,
+                        event.cluster_id,
                     ),
                 )
+
+        for cluster in event_clusters:
+            connection.execute(
+                """
+                insert into event_clusters(
+                    run_id, cluster_id, title, symbols_json, event_type, source_count,
+                    first_seen_at, last_seen_at, summary, confidence, event_hashes_json
+                )
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    cluster.cluster_id,
+                    cluster.title,
+                    cluster.symbols_json,
+                    cluster.event_type,
+                    cluster.source_count,
+                    cluster.first_seen_at,
+                    cluster.last_seen_at,
+                    cluster.summary,
+                    cluster.confidence,
+                    cluster.event_hashes_json,
+                ),
+            )
 
         for symbol, filings in filings_by_symbol.items():
             for filing in filings:
@@ -340,7 +367,22 @@ def _create_tables(connection: sqlite3.Connection) -> None:
             confidence integer,
             impact_score integer,
             related_symbols_json text,
-            dedupe_hash text
+            dedupe_hash text,
+            cluster_id text
+        );
+
+        create table if not exists event_clusters (
+            run_id integer,
+            cluster_id text,
+            title text,
+            symbols_json text,
+            event_type text,
+            source_count integer,
+            first_seen_at text,
+            last_seen_at text,
+            summary text,
+            confidence integer,
+            event_hashes_json text
         );
 
         create table if not exists filings (
@@ -381,6 +423,16 @@ def _create_tables(connection: sqlite3.Connection) -> None:
         );
         """
     )
+    _ensure_column(connection, "events", "cluster_id", "text")
+
+
+def _ensure_column(connection: sqlite3.Connection, table_name: str, column_name: str, column_type: str) -> None:
+    existing_columns = {
+        row[1]
+        for row in connection.execute(f"pragma table_info({table_name})").fetchall()
+    }
+    if column_name not in existing_columns:
+        connection.execute(f"alter table {table_name} add column {column_name} {column_type}")
 
 
 def ensure_schema(database_path: Path) -> None:

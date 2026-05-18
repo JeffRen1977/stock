@@ -33,6 +33,7 @@ from .providers import (
 )
 from .reasoning import analyze_stock
 from .sec import SecEdgarClient, SecFiling
+from .skills.news_clustering import cluster_events, flatten_clusters
 from .storage import save_memory_retrievals, save_run_to_sqlite
 from .whatsapp import build_whatsapp_sender
 
@@ -84,6 +85,7 @@ def run(dry_run: bool = False, skip_fetch: bool = False) -> int:
     filings_by_symbol = _fetch_sec_filings(settings)
     filing_events_by_symbol = extract_events_from_filings(filings_by_symbol)
     events_by_symbol = merge_events(news_events_by_symbol, filing_events_by_symbol)
+    events_by_symbol, event_clusters_by_symbol = cluster_events(events_by_symbol)
     memory_contexts = (
         build_memory_contexts(settings.database_path, settings.watchlist, events_by_symbol)
         if settings.enable_memory_retrieval
@@ -150,6 +152,7 @@ def run(dry_run: bool = False, skip_fetch: bool = False) -> int:
         indicators_by_symbol=indicators_by_symbol,
         analyses=analyses,
         events_by_symbol=events_by_symbol,
+        event_clusters_by_symbol=event_clusters_by_symbol,
         filings_by_symbol=filings_by_symbol,
         memory_contexts=memory_contexts,
         recommendations_by_symbol=recommendations_by_symbol,
@@ -167,6 +170,7 @@ def run(dry_run: bool = False, skip_fetch: bool = False) -> int:
         indicators_by_symbol=indicators_by_symbol,
         analyses=analyses,
         events_by_symbol=events_by_symbol,
+        event_clusters=flatten_clusters(event_clusters_by_symbol),
         filings_by_symbol=filings_by_symbol,
         memory_retrievals=flatten_retrievals(memory_contexts),
         provider_health=provider_health,
@@ -193,6 +197,7 @@ def run(dry_run: bool = False, skip_fetch: bool = False) -> int:
             indicators_by_symbol=indicators_by_symbol,
             analyses=analyses,
             events_by_symbol=events_by_symbol,
+            event_clusters_by_symbol=event_clusters_by_symbol,
             filings_by_symbol=filings_by_symbol,
             memory_contexts=memory_contexts,
             recommendations_by_symbol=recommendations_by_symbol,
