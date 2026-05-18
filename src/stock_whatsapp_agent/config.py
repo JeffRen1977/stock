@@ -79,6 +79,10 @@ class Settings:
     enable_vector_memory: bool
     vector_db_provider: str
     vector_memory_top_k: int
+    enable_llm_analysis: bool
+    llm_provider: str
+    openclaw_agent_id: str
+    openclaw_timeout_seconds: int
     sec_user_agent: str
     sec_filings_limit: int
     timezone: str
@@ -131,6 +135,10 @@ class Settings:
             enable_vector_memory=_optional_bool("ENABLE_VECTOR_MEMORY", False),
             vector_db_provider=os.getenv("VECTOR_DB_PROVIDER", "sqlite").strip().lower(),
             vector_memory_top_k=_optional_int("VECTOR_MEMORY_TOP_K", 3),
+            enable_llm_analysis=_optional_bool("ENABLE_LLM_ANALYSIS", True),
+            llm_provider=os.getenv("LLM_PROVIDER", "openclaw").strip().lower(),
+            openclaw_agent_id=os.getenv("OPENCLAW_AGENT_ID", "stock").strip(),
+            openclaw_timeout_seconds=_optional_int("OPENCLAW_TIMEOUT_SECONDS", 300),
             sec_user_agent=os.getenv(
                 "SEC_USER_AGENT",
                 "OpenClawStockAgent/0.1 contact@example.com",

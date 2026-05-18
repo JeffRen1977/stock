@@ -20,6 +20,7 @@ from .events import extract_events_from_filings, extract_events_from_news, merge
 from .formatter import format_daily_message
 from .health import ProviderHealthRecord, make_provider_health_record
 from .indicators import calculate_indicators
+from .llm_analysis import generate_openclaw_analysis
 from .memory import save_daily_memory
 from .memory_retrieval import build_memory_contexts, flatten_retrievals
 from .providers import (
@@ -189,6 +190,17 @@ def run(dry_run: bool = False, skip_fetch: bool = False) -> int:
         earnings_by_symbol=earnings_by_symbol,
         timezone=settings.timezone,
     )
+    message = _maybe_generate_llm_message(
+        settings=settings,
+        deterministic_message=message,
+        quotes=quotes,
+        news_by_symbol=news_by_symbol,
+        top_gainers=top_gainers,
+        analyses=analyses,
+        events_by_symbol=events_by_symbol,
+        narratives=narratives,
+        cross_stock_observations=cross_stock_observations,
+    )
 
     save_run_to_sqlite(
         database_path=settings.database_path,
@@ -276,6 +288,43 @@ def run(dry_run: bool = False, skip_fetch: bool = False) -> int:
             logger.error("Failed to send WhatsApp message to %s: %s", safe_recipient, result.error)
 
     return 0 if any(result.success for result in results) else 1
+
+
+def _maybe_generate_llm_message(
+    settings: Settings,
+    deterministic_message: str,
+    quotes: list[StockQuote],
+    news_by_symbol: dict[str, list[NewsItem]],
+    top_gainers: list[TopGainer],
+    analyses,
+    events_by_symbol: dict[str, list],
+    narratives: list,
+    cross_stock_observations: list,
+) -> str:
+    if not settings.enable_llm_analysis:
+        return deterministic_message
+    if settings.llm_provider != "openclaw":
+        logger.warning("Unsupported LLM_PROVIDER=%s; using deterministic message", settings.llm_provider)
+        return deterministic_message
+
+    try:
+        message = generate_openclaw_analysis(
+            openclaw_agent_id=settings.openclaw_agent_id,
+            deterministic_message=deterministic_message,
+            quotes=quotes,
+            news_by_symbol=news_by_symbol,
+            top_gainers=top_gainers,
+            analyses=analyses,
+            events_by_symbol=events_by_symbol,
+            narratives=narratives,
+            cross_stock_observations=cross_stock_observations,
+            timeout_seconds=settings.openclaw_timeout_seconds,
+        )
+        logger.info("Generated final message with OpenClaw agent %s", settings.openclaw_agent_id)
+        return message
+    except Exception as exc:
+        logger.warning("LLM final analysis failed; using deterministic message: %s", exc)
+        return deterministic_message
 
 
 def _retrieve_semantic_memories(

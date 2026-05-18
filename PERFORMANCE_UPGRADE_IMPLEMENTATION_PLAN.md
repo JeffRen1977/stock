@@ -825,6 +825,20 @@ Check:
 - Memory files are written.
 - Provider failures do not kill the run.
 
+## Optional LLM Final Analysis
+
+Status: Done
+
+Goal: use the OpenClaw LLM provider as an optional final writing layer while keeping deterministic stock reasoning as the source of truth.
+
+Completion notes:
+
+- Added `llm_analysis.py` to call an OpenClaw agent with compact structured stock facts.
+- Added `ENABLE_LLM_ANALYSIS`, `LLM_PROVIDER`, `OPENCLAW_AGENT_ID`, and `OPENCLAW_TIMEOUT_SECONDS`; LLM analysis is enabled by default.
+- The deterministic formatter remains the fallback when OpenClaw is unavailable or the LLM call fails.
+- Prompt guardrails require the LLM to use only supplied stock facts and keep the financial advice disclaimer.
+- README documents using a dedicated `stock` OpenClaw agent instead of the WeChat `main` agent.
+
 ## Recommended Implementation Order
 
 Best next three implementation tasks:

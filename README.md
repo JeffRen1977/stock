@@ -137,6 +137,19 @@ Alert priority uses `none`, `watch`, `important`, and `urgent` levels. The score
 
 Optional semantic memory can be enabled with `ENABLE_VECTOR_MEMORY=true`. The default local provider stores only compact summaries with lightweight hashed vectors in SQLite, retrieves top ticker-relevant memories before reasoning, and avoids embedding raw oversized documents.
 
+LLM final analysis is enabled by default through OpenClaw. The rule-based Stock agent remains the source of truth, and OpenClaw is used only to rewrite the final WhatsApp message from structured facts. If the LLM call fails, the deterministic message is sent:
+
+```bash
+ENABLE_LLM_ANALYSIS=true
+LLM_PROVIDER=openclaw
+OPENCLAW_AGENT_ID=stock
+OPENCLAW_TIMEOUT_SECONDS=300
+```
+
+Set `ENABLE_LLM_ANALYSIS=false` to disable the LLM writing layer.
+
+Use a dedicated OpenClaw agent such as `stock` with workspace `/home/renjeff/Documents/projects/Stock`. Avoid reusing the WeChat `main` agent because it has article-writing instructions.
+
 SEC EDGAR ingestion is enabled by default for important filings such as `8-K`, `10-Q`, `10-K`, Form `4`, and `S-1`. Set a real contact in `.env`:
 
 ```bash
