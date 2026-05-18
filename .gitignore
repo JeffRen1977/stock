@@ -1,4 +1,5 @@
 .env
+.openclaw/
 .venv/
 __pycache__/
 *.pyc
