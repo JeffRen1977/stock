@@ -76,6 +76,9 @@ class Settings:
     generate_chart_widget: bool
     enable_sec_ingestion: bool
     enable_memory_retrieval: bool
+    enable_vector_memory: bool
+    vector_db_provider: str
+    vector_memory_top_k: int
     sec_user_agent: str
     sec_filings_limit: int
     timezone: str
@@ -125,6 +128,9 @@ class Settings:
             generate_chart_widget=_optional_bool("GENERATE_CHART_WIDGET", True),
             enable_sec_ingestion=_optional_bool("ENABLE_SEC_INGESTION", True),
             enable_memory_retrieval=_optional_bool("ENABLE_MEMORY_RETRIEVAL", False),
+            enable_vector_memory=_optional_bool("ENABLE_VECTOR_MEMORY", False),
+            vector_db_provider=os.getenv("VECTOR_DB_PROVIDER", "sqlite").strip().lower(),
+            vector_memory_top_k=_optional_int("VECTOR_MEMORY_TOP_K", 3),
             sec_user_agent=os.getenv(
                 "SEC_USER_AGENT",
                 "OpenClawStockAgent/0.1 contact@example.com",

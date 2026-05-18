@@ -37,6 +37,11 @@ from .skills.cross_stock_reasoning import generate_cross_stock_observations, obs
 from .skills.news_clustering import cluster_events, flatten_clusters
 from .skills.narrative_tracking import narratives_by_symbol, track_narratives
 from .storage import save_memory_retrievals, save_run_to_sqlite
+from .vector_memory import (
+    retrieve_vector_memories,
+    save_vector_memories,
+    semantic_query_for_symbol,
+)
 from .whatsapp import build_whatsapp_sender
 
 
@@ -102,6 +107,13 @@ def run(dry_run: bool = False, skip_fetch: bool = False) -> int:
         events_by_symbol,
     )
     cross_stock_observations_by_symbol = observations_by_symbol(cross_stock_observations)
+    semantic_memories_by_symbol = _retrieve_semantic_memories(
+        settings=settings,
+        quotes=quotes,
+        news_by_symbol=news_by_symbol,
+        events_by_symbol=events_by_symbol,
+        narratives_by_symbol_map=narratives_by_symbol_map,
+    )
 
     logger.info("Fetching top gainers")
     top_gainers = _fetch_top_gainers(
@@ -136,6 +148,7 @@ def run(dry_run: bool = False, skip_fetch: bool = False) -> int:
             cross_stock_observations_by_symbol.get(quote.symbol, []),
             event_clusters_by_symbol.get(quote.symbol, []),
             filings_by_symbol.get(quote.symbol, []),
+            semantic_memories_by_symbol.get(quote.symbol, []),
         )
         for quote in quotes
     ]
@@ -198,6 +211,22 @@ def run(dry_run: bool = False, skip_fetch: bool = False) -> int:
     )
     logger.info("Saved structured stock data to %s", settings.database_path)
 
+    if settings.enable_vector_memory:
+        try:
+            saved_count = save_vector_memories(
+                database_path=settings.database_path,
+                provider=settings.vector_db_provider,
+                timezone=settings.timezone,
+                news_by_symbol=news_by_symbol,
+                events_by_symbol=events_by_symbol,
+                filings_by_symbol=filings_by_symbol,
+                analyses=analyses,
+                narratives=narratives,
+            )
+            logger.info("Saved %s compact semantic memory item(s)", saved_count)
+        except Exception as exc:
+            logger.warning("Vector memory save failed: %s", exc)
+
     if settings.generate_chart_widget:
         chart_path = render_chart_widget(
             settings.chart_symbol,
@@ -245,6 +274,38 @@ def run(dry_run: bool = False, skip_fetch: bool = False) -> int:
             logger.error("Failed to send WhatsApp message to %s: %s", safe_recipient, result.error)
 
     return 0 if any(result.success for result in results) else 1
+
+
+def _retrieve_semantic_memories(
+    settings: Settings,
+    quotes: list[StockQuote],
+    news_by_symbol: dict[str, list[NewsItem]],
+    events_by_symbol: dict[str, list],
+    narratives_by_symbol_map: dict[str, list],
+) -> dict[str, list]:
+    if not settings.enable_vector_memory:
+        return {}
+
+    memories_by_symbol = {}
+    for quote in quotes:
+        query = semantic_query_for_symbol(
+            quote.symbol,
+            news_by_symbol.get(quote.symbol, []),
+            events_by_symbol.get(quote.symbol, []),
+            narratives_by_symbol_map.get(quote.symbol, []),
+        )
+        try:
+            memories_by_symbol[quote.symbol] = retrieve_vector_memories(
+                database_path=settings.database_path,
+                provider=settings.vector_db_provider,
+                symbol=quote.symbol,
+                query=query,
+                limit=settings.vector_memory_top_k,
+            )
+        except Exception as exc:
+            logger.warning("Vector memory retrieval failed for %s: %s", quote.symbol, exc)
+            memories_by_symbol[quote.symbol] = []
+    return memories_by_symbol
 
 
 def _build_provider_with_fallback(settings: Settings):

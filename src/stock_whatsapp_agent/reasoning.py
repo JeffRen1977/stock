@@ -11,6 +11,7 @@ from .skills.alert_prioritization import prioritize_alert
 from .skills.cross_stock_reasoning import CrossStockObservation
 from .skills.news_clustering import EventCluster
 from .skills.narrative_tracking import NarrativeState
+from .vector_memory import RetrievedVectorMemory
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,7 @@ def analyze_stock(
     cross_stock_observations: list[CrossStockObservation] | None = None,
     event_clusters: list[EventCluster] | None = None,
     filings: list[SecFiling] | None = None,
+    semantic_memories: list[RetrievedVectorMemory] | None = None,
 ) -> StockAnalysis:
     score = 0
     reasons = []
@@ -44,6 +46,7 @@ def analyze_stock(
     cross_stock_observations = cross_stock_observations or []
     event_clusters = event_clusters or []
     filings = filings or []
+    semantic_memories = semantic_memories or []
 
     if quote.change_percent is not None:
         if quote.change_percent >= 3:
@@ -125,6 +128,13 @@ def analyze_stock(
         reasons.append(memory_context.changed_since_previous)
     else:
         confidence_penalty = 0
+
+    if semantic_memories:
+        strongest_memory = semantic_memories[0]
+        reasons.append(
+            f"semantic memory found {strongest_memory.memory_type} context "
+            f"({strongest_memory.similarity:.2f} similarity)"
+        )
 
     if score >= 2:
         stance = "bullish watch"

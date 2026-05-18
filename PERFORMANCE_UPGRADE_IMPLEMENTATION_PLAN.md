@@ -713,6 +713,8 @@ Acceptance criteria:
 
 ## Phase 11: Optional Semantic Memory
 
+Status: Done
+
 Goal: add vector retrieval only after structured memory is useful.
 
 Files likely touched:
@@ -747,6 +749,14 @@ Steps:
    ```
 
 4. Retrieve top memories before reasoning.
+
+Completion notes:
+
+- Added `vector_memory.py` with an optional local SQLite-backed semantic memory store.
+- Vector memory is disabled by default with `ENABLE_VECTOR_MEMORY=false`.
+- The local provider stores compact hashed-vector summaries for events, filings, daily analyses, and narratives without embedding raw oversized documents.
+- Enabled runs retrieve top symbol-relevant semantic memories before reasoning and save compact memories after the structured run is persisted.
+- Unsupported vector providers are isolated behind config and do not affect disabled runs.
 
 Acceptance criteria:
 
